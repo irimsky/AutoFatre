@@ -109,7 +109,7 @@ FATE 完成后，插件会先清理仍以本地玩家为目标的战斗 NPC，�
 - 本地发布前检查：`powershell -File .\release.ps1 -Version 0.2.0 -Restore`。脚本只检查版本、Release 构建和插件包是否生成，不会修改或推送任何仓库；网络不可用时可增加 `-SkipRemoteTagCheck`。需要在 main 且工作区干净时，再增加 `-RequireMainBranch -RequireCleanWorkspace`。
 - 将已提交版本创建为三段或四段版本号 tag（例如 `v0.2.0` 或 `0.2.0.0`）后，`.github/workflows/release.yml` 会在干净环境构建、运行单元测试并创建 GitHub Release。也可以通过 `workflow_dispatch` 重新处理一个已有 tag，并选择国服或国际服 Dalamud runtime。
 - Release 默认只附带用户安装所需的 `latest.zip`。checksum、发布清单和自定义 release notes 可由项目自行生成，不是插件安装器的强制要求。
-- Manifest PR 是可选的维护动作。手动运行 workflow 时选择 `manifest_update=pr` 才会访问外部 Manifest 仓库，并需要 Secrets 中的 `DALAMUD_MANIFEST_TOKEN`；普通 tag 发布不需要这个 Token。仓库变量 `AUTOFATRE_MANIFEST_REPOSITORY` 可覆盖默认的 `irimsky/MyDalamudPlugins`。
+- Manifest PR 是可选的维护动作。手动运行 workflow 时选择 `manifest_update=pr` 才会访问 `irimsky/DalamudPlugins`，并需要 Secrets 中的 `DALAMUD_MANIFEST_TOKEN`；普通 tag 发布不需要这个 Token。仓库变量 `AUTOFATRE_MANIFEST_REPOSITORY` 可覆盖这个默认仓库。
 
 ## 许可证
 

@@ -269,7 +269,7 @@ jobs:
       - name: Checkout external Dalamud manifest repository
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/MyDalamudPlugins' }}
+          repository: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/DalamudPlugins' }}
           token: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
 
       - name: Update manifest entry
@@ -296,7 +296,7 @@ jobs:
         id: manifest-branch
         shell: pwsh
         env:
-          MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/MyDalamudPlugins' }}
+          MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/DalamudPlugins' }}
           MANIFEST_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
           RELEASE_VERSION: ${{ needs.release.outputs.release_version }}
         run: |
@@ -332,7 +332,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
-          MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/MyDalamudPlugins' }}
+          MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/DalamudPlugins' }}
           RELEASE_VERSION: ${{ needs.release.outputs.release_version }}
           RELEASE_URL: ${{ needs.release.outputs.release_url }}
         run: |
