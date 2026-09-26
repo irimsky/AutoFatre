@@ -1,0 +1,22 @@
+.dotnet/
+.dotnet-home/
+.nuget/
+.dalamud/
+.dalamud-runtime/
+TestResults/
+bin/
+obj/
+.dalamud-runtime.7z
+7zr.exe
+# IDE and local user files.
+.vs/
+*.user
+*.suo
+
+# Generated tool caches and Python bytecode.
+tools/__pycache__/
+*.pyc
+
+# Local logs and temporary files.
+*.log
+*.tmp

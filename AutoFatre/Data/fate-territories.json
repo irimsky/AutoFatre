@@ -1,0 +1,6863 @@
+{
+  "Metadata": {
+    "GeneratedAtUtc": "2026-09-07T14:35:18.8198416+00:00",
+    "SnapshotId": "20260907-143518Z",
+    "ToolVersion": "0.1",
+    "GameVersion": "2026.08.05.0000.0000",
+    "ClientLanguage": "ChineseSimplified",
+    "NamedFateCount": 1730,
+    "FateWithLocationCount": 1715,
+    "MappedFateCount": 1141,
+    "LoadedLayerFileCount": 209,
+    "MatchedEventRangeCount": 1087,
+    "AmbiguousFateCount": 0
+  },
+  "Fates": [
+    {
+      "FateId": 120,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 121,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 122,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 123,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 124,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 125,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 126,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 127,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 128,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 131,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 136,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 137,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 138,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 139,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 140,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 141,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 142,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 143,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 144,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 145,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 148,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 149,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 150,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 151,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 152,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 153,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 154,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 158,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 159,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 160,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 161,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 162,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 163,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 164,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 166,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 167,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 168,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 169,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 170,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 171,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 172,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 173,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 174,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 178,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 180,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 183,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 184,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 185,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 187,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 188,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 189,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 190,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 191,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 192,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 193,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 194,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 195,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 196,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 197,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 198,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 199,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 200,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 201,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 202,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 203,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 204,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 205,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 206,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 207,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 208,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 209,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 212,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 213,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 214,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 215,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 216,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 217,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 218,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 220,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 221,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 222,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 223,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 225,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 226,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 227,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 229,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 231,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 233,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 235,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 237,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 238,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 239,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 240,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 245,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 246,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 249,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 250,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 251,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 257,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 260,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 261,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 262,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 264,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 265,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 267,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 268,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 271,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 272,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 274,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 278,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 279,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 280,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 282,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 286,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 287,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 289,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 290,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 291,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 295,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 297,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 298,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 303,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 304,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 306,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 308,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 309,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 310,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 312,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 314,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 317,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 320,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 321,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 322,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 323,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 329,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 331,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 332,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 333,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 334,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 335,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 336,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 342,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 343,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 344,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 345,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 346,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 347,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 348,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 349,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 350,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 352,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 353,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 354,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 355,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 356,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 357,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 361,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 366,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 367,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 370,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 373,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 374,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 375,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 376,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 377,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 378,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 379,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 381,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 383,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 385,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 389,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 393,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 394,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 395,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 397,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 398,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 400,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 401,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 402,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 406,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 407,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 409,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 412,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 413,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 419,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 420,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 421,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 422,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 423,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 424,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 427,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 429,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 430,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 431,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 432,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 434,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 436,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 437,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 441,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 446,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 447,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 449,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 450,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 451,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 452,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 453,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 454,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 455,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 456,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 457,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 460,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 463,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 464,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 465,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 466,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 467,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 469,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 470,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 472,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 473,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 474,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 475,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 479,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 480,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 482,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 483,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 484,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 486,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 487,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 489,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 490,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 491,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 493,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 494,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 496,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 497,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 498,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 499,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 500,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 501,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 502,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 503,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 504,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 505,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 506,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 507,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 508,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 512,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 514,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 516,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 517,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 520,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 521,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 522,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 523,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 524,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 525,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 526,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 527,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 529,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 530,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 532,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 533,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 534,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 535,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 536,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 537,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 538,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 540,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 541,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 542,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 543,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 545,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 546,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 548,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 549,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 550,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 551,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 552,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 553,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 554,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 555,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 556,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 557,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 558,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 560,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 561,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 562,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 563,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 564,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 565,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 566,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 568,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 569,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 570,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 571,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 572,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 574,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 575,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 576,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 577,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 578,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 580,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 581,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 583,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 586,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 587,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 588,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 589,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 591,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 593,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 594,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 595,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 597,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 598,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 599,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 600,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 601,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 602,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 603,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 604,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 607,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 608,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 609,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 610,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 611,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 612,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 615,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 616,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 618,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 619,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 620,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 622,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 624,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 626,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 627,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 628,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 631,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 632,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 633,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 634,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 637,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 638,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 639,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 641,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 642,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 643,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 644,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 645,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 646,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 647,
+      "TerritoryId": 147,
+      "MapId": 24,
+      "TerritoryName": "北萨纳兰"
+    },
+    {
+      "FateId": 649,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 650,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 651,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 652,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 653,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 654,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 655,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 656,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 657,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 658,
+      "TerritoryId": 156,
+      "MapId": 25,
+      "TerritoryName": "摩杜纳"
+    },
+    {
+      "FateId": 660,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 661,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 666,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 667,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 668,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 669,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 670,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 671,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 672,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 673,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 674,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 675,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 676,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 677,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 679,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 680,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 681,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 682,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 683,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 684,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 685,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 686,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 687,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 688,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 689,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 690,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 691,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 692,
+      "TerritoryId": 152,
+      "MapId": 5,
+      "TerritoryName": "黑衣森林东部林区"
+    },
+    {
+      "FateId": 693,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 694,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 695,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 696,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 697,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 698,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 699,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 700,
+      "TerritoryId": 180,
+      "MapId": 30,
+      "TerritoryName": "拉诺西亚外地"
+    },
+    {
+      "FateId": 701,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 702,
+      "TerritoryId": 138,
+      "MapId": 18,
+      "TerritoryName": "西拉诺西亚"
+    },
+    {
+      "FateId": 703,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 704,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 705,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 706,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 707,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 708,
+      "TerritoryId": 153,
+      "MapId": 6,
+      "TerritoryName": "黑衣森林南部林区"
+    },
+    {
+      "FateId": 709,
+      "TerritoryId": 155,
+      "MapId": 53,
+      "TerritoryName": "库尔札斯中央高地"
+    },
+    {
+      "FateId": 710,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 711,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 712,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 713,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 714,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 715,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 717,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 718,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 719,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 720,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 722,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 725,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 726,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 727,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 728,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 731,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 732,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 735,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 736,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 737,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 738,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 740,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 741,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 742,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 744,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 746,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 747,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 748,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 751,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 752,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 753,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 754,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 755,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 756,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 757,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 758,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 759,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 760,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 761,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 762,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 763,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 764,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 766,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 767,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 768,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 769,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 770,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 771,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 772,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 773,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 774,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 775,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 777,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 778,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 779,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 780,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 781,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 782,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 783,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 784,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 785,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 786,
+      "TerritoryId": 399,
+      "MapId": 213,
+      "TerritoryName": "龙堡内陆低地"
+    },
+    {
+      "FateId": 787,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 788,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 789,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 791,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 792,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 793,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 794,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 795,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 796,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 798,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 800,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 801,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 802,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 805,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 807,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 809,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 810,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 811,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 812,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 813,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 814,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 815,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 816,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 817,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 818,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 819,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 820,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 821,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 822,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 823,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 824,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 825,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 826,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 827,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 828,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 829,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 830,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 831,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 832,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 833,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 834,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 835,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 836,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 837,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 838,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 839,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 840,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 841,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 842,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 843,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 844,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 845,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 846,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 847,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 851,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 852,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 853,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 854,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 855,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 856,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 857,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 860,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 861,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 862,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 863,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 864,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 865,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 866,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 867,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 868,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 869,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 870,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 871,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 872,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 873,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 874,
+      "TerritoryId": 400,
+      "MapId": 214,
+      "TerritoryName": "翻云雾海"
+    },
+    {
+      "FateId": 875,
+      "TerritoryId": 401,
+      "MapId": 215,
+      "TerritoryName": "阿巴拉提亚云海"
+    },
+    {
+      "FateId": 877,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 878,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 879,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 880,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 881,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 882,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 883,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 884,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 885,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 886,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 887,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 888,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 889,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 890,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 891,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 892,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 893,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 894,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 895,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 897,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 898,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 899,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 900,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 901,
+      "TerritoryId": 402,
+      "MapId": 216,
+      "TerritoryName": "魔大陆阿济兹拉"
+    },
+    {
+      "FateId": 902,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 903,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 904,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 905,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 906,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 907,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 908,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 909,
+      "TerritoryId": 397,
+      "MapId": 211,
+      "TerritoryName": "库尔札斯西部高地"
+    },
+    {
+      "FateId": 910,
+      "TerritoryId": 398,
+      "MapId": 212,
+      "TerritoryName": "龙堡参天高地"
+    },
+    {
+      "FateId": 911,
+      "TerritoryId": 140,
+      "MapId": 20,
+      "TerritoryName": "西萨纳兰"
+    },
+    {
+      "FateId": 912,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 913,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 914,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 915,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 916,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 917,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 918,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 920,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 921,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 922,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 923,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 924,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 925,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 932,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 933,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 934,
+      "TerritoryId": 146,
+      "MapId": 23,
+      "TerritoryName": "南萨纳兰"
+    },
+    {
+      "FateId": 935,
+      "TerritoryId": 139,
+      "MapId": 19,
+      "TerritoryName": "拉诺西亚高地"
+    },
+    {
+      "FateId": 936,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 937,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 938,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 939,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 940,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 941,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 945,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 946,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 947,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 948,
+      "TerritoryId": 154,
+      "MapId": 7,
+      "TerritoryName": "黑衣森林北部林区"
+    },
+    {
+      "FateId": 949,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 950,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 951,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 952,
+      "TerritoryId": 145,
+      "MapId": 22,
+      "TerritoryName": "东萨纳兰"
+    },
+    {
+      "FateId": 959,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 960,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 961,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 962,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 1103,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1104,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1105,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1106,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1107,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1108,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1109,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1110,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1111,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1112,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1113,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1114,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1115,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1116,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1117,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1118,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1119,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1120,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1121,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1122,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1124,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1125,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1126,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1127,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1128,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1129,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1130,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1131,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1132,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1133,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1134,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1135,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1136,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1137,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1138,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1139,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1140,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1141,
+      "TerritoryId": 612,
+      "MapId": 367,
+      "TerritoryName": "基拉巴尼亚边区"
+    },
+    {
+      "FateId": 1142,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1143,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1144,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1145,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1146,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1147,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1148,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1149,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1150,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1151,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1152,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1153,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1154,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1155,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1156,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1157,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1158,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1159,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1160,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1161,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1162,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1163,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1164,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1165,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1166,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1167,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1168,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1170,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1171,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1172,
+      "TerritoryId": 613,
+      "MapId": 371,
+      "TerritoryName": "红玉海"
+    },
+    {
+      "FateId": 1173,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1174,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1175,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1176,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1177,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1178,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1179,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1180,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1181,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1182,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1184,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1185,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1186,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1187,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1188,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1189,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1190,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1191,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1193,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1194,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1195,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1196,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1197,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1198,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1199,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1200,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1201,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1202,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1203,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1204,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1205,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1207,
+      "TerritoryId": 620,
+      "MapId": 368,
+      "TerritoryName": "基拉巴尼亚山区"
+    },
+    {
+      "FateId": 1208,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1209,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1210,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1211,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1212,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1213,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1214,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1215,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1216,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1217,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1218,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1219,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1220,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1221,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1222,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1223,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1224,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1225,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1226,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1227,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1228,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1229,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1230,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1231,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1232,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1233,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1234,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1235,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1236,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1237,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1238,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1239,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1240,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1241,
+      "TerritoryId": 614,
+      "MapId": 354,
+      "TerritoryName": "延夏"
+    },
+    {
+      "FateId": 1242,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1243,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1244,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1245,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1246,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1247,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1248,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1249,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1250,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1251,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1252,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1253,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1254,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1255,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1256,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1257,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1258,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1259,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1260,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1261,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1262,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1263,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1264,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1265,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1266,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1267,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1268,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1269,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1270,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1271,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1272,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1273,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1274,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1275,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1276,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1277,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1278,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1279,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1280,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1281,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1282,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1283,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1284,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1285,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1286,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1287,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1288,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1289,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1290,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1291,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1292,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1293,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1294,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1295,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1296,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1297,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1298,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1299,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1300,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1301,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1302,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1303,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1304,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1305,
+      "TerritoryId": 621,
+      "MapId": 369,
+      "TerritoryName": "基拉巴尼亚湖区"
+    },
+    {
+      "FateId": 1306,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1307,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1308,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1309,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1310,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1311,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1312,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1313,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1315,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1316,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1318,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1319,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1320,
+      "TerritoryId": 622,
+      "MapId": 372,
+      "TerritoryName": "太阳神草原"
+    },
+    {
+      "FateId": 1321,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 1322,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 1323,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 1324,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 1325,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 1326,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 1327,
+      "TerritoryId": 135,
+      "MapId": 16,
+      "TerritoryName": "拉诺西亚低地"
+    },
+    {
+      "FateId": 1387,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 1409,
+      "TerritoryId": 141,
+      "MapId": 21,
+      "TerritoryName": "中萨纳兰"
+    },
+    {
+      "FateId": 1426,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1427,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1428,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1429,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1430,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1431,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1432,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1433,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1434,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1435,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1436,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1437,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1438,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1439,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1440,
+      "TerritoryId": 818,
+      "MapId": 496,
+      "TerritoryName": "黑风海"
+    },
+    {
+      "FateId": 1441,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1442,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1443,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1444,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1445,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1446,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1447,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1448,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1449,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1450,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1451,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1452,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1453,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1454,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1455,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1456,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1457,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1458,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1459,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1460,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1461,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1462,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1463,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1464,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1465,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1466,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1467,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1468,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1469,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1470,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1471,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1472,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1473,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1474,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1475,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1476,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1477,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1478,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1479,
+      "TerritoryId": 814,
+      "MapId": 492,
+      "TerritoryName": "珂露西亚岛"
+    },
+    {
+      "FateId": 1480,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1481,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1482,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1483,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1484,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1485,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1486,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1487,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1488,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1489,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1490,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1491,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1492,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1493,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1494,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1495,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1496,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1497,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1498,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1499,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1500,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1501,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1502,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1503,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1504,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1505,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1506,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1507,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1508,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1509,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1510,
+      "TerritoryId": 813,
+      "MapId": 491,
+      "TerritoryName": "雷克兰德"
+    },
+    {
+      "FateId": 1511,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1512,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1513,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1514,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1515,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1516,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1517,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1518,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1519,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1520,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1521,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1522,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1523,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1524,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1525,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1526,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1527,
+      "TerritoryId": 815,
+      "MapId": 493,
+      "TerritoryName": "安穆·艾兰"
+    },
+    {
+      "FateId": 1528,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1529,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1530,
+      "TerritoryId": 817,
+      "MapId": 495,
+      "TerritoryName": "拉凯提卡大森林"
+    },
+    {
+      "FateId": 1531,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1532,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1533,
+      "TerritoryId": 816,
+      "MapId": 494,
+      "TerritoryName": "伊尔美格"
+    },
+    {
+      "FateId": 1537,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 1594,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 1596,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 1667,
+      "TerritoryId": 134,
+      "MapId": 15,
+      "TerritoryName": "中拉诺西亚"
+    },
+    {
+      "FateId": 1710,
+      "TerritoryId": 137,
+      "MapId": 17,
+      "TerritoryName": "东拉诺西亚"
+    },
+    {
+      "FateId": 1743,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1744,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1745,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1746,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1747,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1748,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1749,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1750,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1751,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1752,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1753,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1754,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1755,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1756,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1757,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1758,
+      "TerritoryId": 956,
+      "MapId": 695,
+      "TerritoryName": "迷津"
+    },
+    {
+      "FateId": 1763,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1764,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1765,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1766,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1767,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1768,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1769,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1770,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1771,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1772,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1773,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1774,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1775,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1776,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1777,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1778,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1779,
+      "TerritoryId": 957,
+      "MapId": 696,
+      "TerritoryName": "萨维奈岛"
+    },
+    {
+      "FateId": 1783,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1784,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1785,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1786,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1787,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1788,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1789,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1790,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1791,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1792,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1793,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1794,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1795,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1796,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1797,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1798,
+      "TerritoryId": 958,
+      "MapId": 697,
+      "TerritoryName": "加雷马"
+    },
+    {
+      "FateId": 1803,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1804,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1805,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1806,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1807,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1808,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1809,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1810,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1811,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1812,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1813,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1814,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1815,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1816,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1817,
+      "TerritoryId": 959,
+      "MapId": 698,
+      "TerritoryName": "叹息海"
+    },
+    {
+      "FateId": 1823,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1824,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1825,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1826,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1827,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1828,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1829,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1830,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1831,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1832,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1833,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1834,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1835,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1836,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1837,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1838,
+      "TerritoryId": 961,
+      "MapId": 700,
+      "TerritoryName": "厄尔庇斯"
+    },
+    {
+      "FateId": 1843,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1844,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1845,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1846,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1847,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1848,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1849,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1850,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1851,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1852,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1853,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1854,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1855,
+      "TerritoryId": 960,
+      "MapId": 699,
+      "TerritoryName": "天外天垓"
+    },
+    {
+      "FateId": 1856,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 1857,
+      "TerritoryId": 148,
+      "MapId": 4,
+      "TerritoryName": "黑衣森林中央林区"
+    },
+    {
+      "FateId": 1860,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1861,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1862,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1863,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1864,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1865,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1866,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1867,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1868,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1869,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1870,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1871,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1872,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1873,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1874,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1875,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1876,
+      "TerritoryId": 1190,
+      "MapId": 860,
+      "TerritoryName": "夏劳尼荒野"
+    },
+    {
+      "FateId": 1877,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1878,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1879,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1880,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1881,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1882,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1883,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1884,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1885,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1886,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1887,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1888,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1889,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1890,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1891,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1892,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1893,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1894,
+      "TerritoryId": 1187,
+      "MapId": 857,
+      "TerritoryName": "奥阔帕恰山"
+    },
+    {
+      "FateId": 1895,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1896,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1897,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1898,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1899,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1900,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1901,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1902,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1903,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1904,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1905,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1906,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1907,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1908,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1909,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1910,
+      "TerritoryId": 1189,
+      "MapId": 859,
+      "TerritoryName": "亚克特尔树海"
+    },
+    {
+      "FateId": 1911,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1912,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1913,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1914,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1915,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1916,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1917,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1918,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1919,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1920,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1921,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1922,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1923,
+      "TerritoryId": 1192,
+      "MapId": 862,
+      "TerritoryName": "活着的记忆"
+    },
+    {
+      "FateId": 1924,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1925,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1926,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1927,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1928,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1929,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1930,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1931,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1932,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1933,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1934,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1935,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1936,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1937,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1938,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1939,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1940,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1941,
+      "TerritoryId": 1188,
+      "MapId": 858,
+      "TerritoryName": "克扎玛乌卡湿地"
+    },
+    {
+      "FateId": 1942,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1943,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1944,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1945,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1946,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1947,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1948,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1949,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1950,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1951,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1952,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1953,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1954,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1955,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1956,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1957,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    },
+    {
+      "FateId": 1958,
+      "TerritoryId": 1191,
+      "MapId": 861,
+      "TerritoryName": "遗产之地"
+    }
+  ]
+}

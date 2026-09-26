@@ -1,0 +1,353 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+      - '*.*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and publish, for example v0.2.0 or 0.2.0.0
+        required: true
+        type: string
+      dalamud_region:
+        description: Dalamud runtime region
+        required: true
+        default: cn
+        type: choice
+        options:
+          - cn
+          - global
+      manifest_update:
+        description: Update the external Dalamud manifest through a pull request
+        required: true
+        default: skip
+        type: choice
+        options:
+          - pr
+          - skip
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: 10.0.400
+  DALAMUD_REGION: ${{ inputs.dalamud_region || vars.AUTOFATRE_DALAMUD_REGION || 'cn' }}
+  DALAMUD_CUSTOM_RUNTIME_URL: ${{ vars.AUTOFATRE_DALAMUD_RUNTIME_URL }}
+  DALAMUD_CUSTOM_RUNTIME_SHA256: ${{ vars.AUTOFATRE_DALAMUD_RUNTIME_SHA256 }}
+  DALAMUD_CN_RUNTIME_URL: https://github.com/Dalamud-DailyRoutines/Dalamud/releases/latest/download/latest.7z
+  DALAMUD_GLOBAL_RUNTIME_URL: https://goatcorp.github.io/dalamud-distrib/latest.zip
+  DALAMUD_RUNTIME_SHA256: ${{ vars.AUTOFATRE_DALAMUD_RUNTIME_SHA256 }}
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: windows-latest
+    outputs:
+      release_version: ${{ steps.publish.outputs.release_version }}
+      assembly_version: ${{ steps.publish.outputs.assembly_version }}
+      release_url: ${{ steps.publish.outputs.release_url }}
+      download_count: ${{ steps.publish.outputs.download_count }}
+      last_update: ${{ steps.publish.outputs.last_update }}
+      update_manifest: ${{ github.event_name == 'workflow_dispatch' && inputs.manifest_update == 'pr' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Initialize FieldNavigation submodule
+        shell: pwsh
+        run: |
+          git config submodule.AutoFatre/FieldNavigation.url https://github.com/irimsky/FieldNavigation.git
+          git submodule update --init --recursive
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/packages.lock.json', 'global.json', 'Directory.Build.props', 'Directory.Build.targets') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Download Dalamud runtime
+        shell: pwsh
+        env:
+          RUNTIME_DIRECTORY: ${{ github.workspace }}\.dalamud-runtime
+        run: |
+          $region = $env:DALAMUD_REGION.Trim().ToLowerInvariant()
+          switch ($region) {
+            'cn' {
+              $runtimeUrl = $env:DALAMUD_CN_RUNTIME_URL
+            }
+            'global' {
+              $runtimeUrl = $env:DALAMUD_GLOBAL_RUNTIME_URL
+            }
+            default { throw "Unsupported Dalamud region '$region'. Use 'cn' or 'global'." }
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:DALAMUD_CUSTOM_RUNTIME_URL)) {
+            $runtimeUrl = $env:DALAMUD_CUSTOM_RUNTIME_URL
+            $expectedHash = $env:DALAMUD_CUSTOM_RUNTIME_SHA256
+          }
+          else {
+            $expectedHash = $env:DALAMUD_RUNTIME_SHA256
+          }
+          if ([string]::IsNullOrWhiteSpace($runtimeUrl)) {
+            throw "No Dalamud runtime URL is configured for region '$region'."
+          }
+          Write-Host "Using Dalamud region '$region': $runtimeUrl"
+          $archiveExtension = if ($runtimeUrl -match '\.7z(?:\?|$)') { '.7z' } else { '.zip' }
+          $archive = Join-Path $env:RUNNER_TEMP "autofatre-dalamud-runtime$archiveExtension"
+          Invoke-WebRequest -Uri $runtimeUrl -OutFile $archive
+
+          if (-not [string]::IsNullOrWhiteSpace($expectedHash)) {
+            $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expectedHash = $expectedHash.Trim().ToLowerInvariant()
+            if ($actualHash -ne $expectedHash) {
+              throw "Dalamud runtime SHA-256 mismatch. Expected $expectedHash, got $actualHash."
+            }
+            Write-Host "Dalamud runtime SHA-256 verified: $actualHash"
+          }
+          else {
+            Write-Warning 'Dalamud runtime SHA-256 is not configured; continuing with the selected runtime URL.'
+          }
+
+          if (Test-Path -LiteralPath $env:RUNTIME_DIRECTORY) {
+            Remove-Item -LiteralPath $env:RUNTIME_DIRECTORY -Recurse -Force
+          }
+          if ($archiveExtension -eq '.7z') {
+            $sevenZip = Get-Command 7z, 7z.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            $sevenZipPath = if ($null -ne $sevenZip) { $sevenZip.Source } else { Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+            if (-not (Test-Path -LiteralPath $sevenZipPath)) {
+              throw '7z is required to extract the configured Dalamud .7z runtime archive.'
+            }
+            & $sevenZipPath x $archive "-o$env:RUNTIME_DIRECTORY" -y
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to extract Dalamud runtime archive with 7z (exit code $LASTEXITCODE)."
+            }
+          }
+          else {
+            Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNTIME_DIRECTORY -Force
+          }
+
+          $runtimeAssembly = Get-ChildItem -LiteralPath $env:RUNTIME_DIRECTORY -Filter Dalamud.dll -File -Recurse | Select-Object -First 1
+          if ($null -eq $runtimeAssembly) {
+            throw "Downloaded Dalamud runtime does not contain Dalamud.dll: $runtimeUrl"
+          }
+
+          $runtimeVersion = [Reflection.AssemblyName]::GetAssemblyName($runtimeAssembly.FullName).Version
+          $commitFile = Get-ChildItem -LiteralPath $env:RUNTIME_DIRECTORY -Filter commit_hash.txt -File -Recurse | Select-Object -First 1
+          Write-Host "Dalamud runtime assembly version: $runtimeVersion"
+          if ($null -ne $commitFile) {
+            Write-Host "Dalamud runtime commit: $((Get-Content -LiteralPath $commitFile.FullName -Raw).Trim())"
+          }
+
+          "DALAMUD_RUNTIME_PATH=$($runtimeAssembly.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Dalamud runtime extracted to $($runtimeAssembly.Directory.FullName)"
+
+      - name: Restore and build Release
+        shell: pwsh
+        run: .\build.ps1 -Configuration Release -Restore -DotnetPath dotnet -DalamudLibPath "$env:DALAMUD_RUNTIME_PATH"
+
+      - name: Restore test project
+        shell: pwsh
+        run: dotnet restore .\AutoFatre.Tests\AutoFatre.Tests.csproj --packages .\.nuget "-p:DalamudLibPath=$env:DALAMUD_RUNTIME_PATH"
+
+      - name: Run unit tests
+        shell: pwsh
+        run: dotnet test .\AutoFatre.Tests\AutoFatre.Tests.csproj --configuration Release --no-restore "-p:DalamudLibPath=$env:DALAMUD_RUNTIME_PATH" --logger "trx;LogFileName=AutoFatre.Tests.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoFatre-release-test-results-${{ inputs.tag || github.ref_name }}
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: Validate release version
+        id: version
+        shell: pwsh
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.tag || github.ref_name }}
+        run: |
+          $releaseVersion = $env:RELEASE_TAG_INPUT.Trim()
+          if ($releaseVersion -notmatch '^v?\d+\.\d+\.\d+(\.\d+)?$') {
+            throw "Release tag must use three or four numeric components, with an optional v prefix, got '$releaseVersion'."
+          }
+
+          $projectText = Get-Content .\AutoFatre\AutoFatre.csproj -Raw
+          $match = [regex]::Match($projectText, '<Version>(?<version>[^<]+)</Version>')
+          if (-not $match.Success) {
+            throw 'AutoFatre/AutoFatre.csproj does not contain a Version element.'
+          }
+          $assemblyVersion = $match.Groups['version'].Value
+          $normalizedTag = $releaseVersion -replace '^[vV]', ''
+          $tagParts = @($normalizedTag.Split('.') | ForEach-Object { [int]$_ })
+          $projectParts = @($assemblyVersion.Split('.') | ForEach-Object { [int]$_ })
+          while ($tagParts.Count -lt 4) { $tagParts += 0 }
+          while ($projectParts.Count -lt 4) { $projectParts += 0 }
+          if (($tagParts -join '.') -ne ($projectParts -join '.')) {
+            throw "Release tag $releaseVersion does not match project version $assemblyVersion."
+          }
+          "RELEASE_VERSION=$releaseVersion" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "ASSEMBLY_VERSION=$assemblyVersion" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+          "release_version=$releaseVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "assembly_version=$assemblyVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Publish GitHub release
+        id: publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releaseTag = $env:RELEASE_VERSION
+          $package = Join-Path $PWD 'AutoFatre\bin\Release\AutoFatre\latest.zip'
+          if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "Plugin package was not found: $package" }
+          $assets = @($package)
+
+          gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+          if ($releaseExists) {
+            gh release upload $releaseTag @assets --repo $env:GITHUB_REPOSITORY --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Failed to upload assets to existing release $releaseTag." }
+            gh release edit $releaseTag --repo $env:GITHUB_REPOSITORY --title "AutoFatre $releaseTag"
+          }
+          else {
+            gh release create $releaseTag @assets --repo $env:GITHUB_REPOSITORY --title "AutoFatre $releaseTag" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish GitHub release $releaseTag." }
+
+          $release = (gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$releaseTag" | ConvertFrom-Json)
+          $downloadCount = [long]0
+          foreach ($asset in @($release.assets)) { $downloadCount += [long]$asset.download_count }
+          $lastUpdate = [DateTimeOffset]::Parse($release.published_at).ToUnixTimeSeconds()
+
+          "release_version=$releaseTag" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "assembly_version=$env:ASSEMBLY_VERSION" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "release_url=$($release.html_url)" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "download_count=$downloadCount" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "last_update=$lastUpdate" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+  manifest-pr:
+    name: Open external manifest pull request
+    needs: release
+    if: needs.release.result == 'success' && needs.release.outputs.update_manifest == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require external manifest token
+        shell: pwsh
+        env:
+          MANIFEST_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:MANIFEST_TOKEN)) {
+            throw 'Configure the shared DALAMUD_MANIFEST_TOKEN repository secret before enabling external manifest PRs.'
+          }
+
+      - name: Checkout AutoFatre metadata
+        uses: actions/checkout@v4
+        with:
+          path: autofatre
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Checkout external Dalamud manifest repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/MyDalamudPlugins' }}
+          token: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
+
+      - name: Update manifest entry
+        shell: pwsh
+        env:
+          REPOSITORY_NAME: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.release.outputs.release_version }}
+          ASSEMBLY_VERSION: ${{ needs.release.outputs.assembly_version }}
+          DOWNLOAD_COUNT: ${{ needs.release.outputs.download_count }}
+          LAST_UPDATE: ${{ needs.release.outputs.last_update }}
+        run: |
+          .\autofatre\tools\Update-Manifest.ps1 `
+            -ManifestPath .\manifest.json `
+            -PluginManifestPath .\autofatre\AutoFatre\AutoFatre.json `
+            -RepositoryUrl "https://github.com/$env:REPOSITORY_NAME" `
+            -AssemblyVersion $env:ASSEMBLY_VERSION `
+            -ReleaseTag $env:RELEASE_VERSION `
+            -DownloadCount $env:DOWNLOAD_COUNT `
+            -LastUpdate $env:LAST_UPDATE
+          git diff --check
+          git diff -- manifest.json
+
+      - name: Commit and push manifest update
+        id: manifest-branch
+        shell: pwsh
+        env:
+          MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/MyDalamudPlugins' }}
+          MANIFEST_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
+          RELEASE_VERSION: ${{ needs.release.outputs.release_version }}
+        run: |
+          $branch = "autofatre/release-$env:RELEASE_VERSION"
+          $remoteBranch = (git ls-remote --heads origin $branch)
+          if (-not [string]::IsNullOrWhiteSpace($remoteBranch)) {
+            git fetch origin "$branch`:$branch"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch existing manifest branch $branch." }
+            git checkout $branch
+          }
+          else {
+            git checkout -b $branch
+          }
+
+          git config user.name 'AutoFatre Release Bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- manifest.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            "changed=false" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host 'Manifest already contains the released entry; no PR is needed.'
+            exit 0
+          }
+
+          git commit -m "Update AutoFatre $env:RELEASE_VERSION manifest"
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to commit manifest update.' }
+          git push origin "HEAD:$branch"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to push manifest branch $branch." }
+          "changed=true" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Create or update manifest pull request
+        if: steps.manifest-branch.outputs.changed == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
+          MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/MyDalamudPlugins' }}
+          RELEASE_VERSION: ${{ needs.release.outputs.release_version }}
+          RELEASE_URL: ${{ needs.release.outputs.release_url }}
+        run: |
+          $branch = "autofatre/release-$env:RELEASE_VERSION"
+          $title = "Update AutoFatre $env:RELEASE_VERSION manifest"
+          $body = @"
+          Automated manifest update for [AutoFatre $env:RELEASE_VERSION]($env:RELEASE_URL).
+
+          This PR was generated by the AutoFatre release workflow for the released plugin package.
+          "@
+          $existing = gh pr list --repo $env:MANIFEST_REPOSITORY --head $branch --base main --state open --json url --jq '.[0].url'
+          if ([string]::IsNullOrWhiteSpace($existing)) {
+            gh pr create --repo $env:MANIFEST_REPOSITORY --head $branch --base main --title $title --body $body
+          }
+          else {
+            gh pr edit $existing --repo $env:MANIFEST_REPOSITORY --title $title --body $body
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create or update the manifest PR for $env:RELEASE_VERSION." }

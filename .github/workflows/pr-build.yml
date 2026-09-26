@@ -1,0 +1,174 @@
+name: Pull Request Build
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      dalamud_region:
+        description: Dalamud runtime region
+        required: true
+        default: cn
+        type: choice
+        options:
+          - cn
+          - global
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: 10.0.400
+  # workflow_dispatch input takes precedence; PR builds use the repository
+  # variable when configured, otherwise they default to the CN runtime.
+  DALAMUD_REGION: ${{ inputs.dalamud_region || vars.AUTOFATRE_DALAMUD_REGION || 'cn' }}
+  DALAMUD_CUSTOM_RUNTIME_URL: ${{ vars.AUTOFATRE_DALAMUD_RUNTIME_URL }}
+  DALAMUD_CUSTOM_RUNTIME_SHA256: ${{ vars.AUTOFATRE_DALAMUD_RUNTIME_SHA256 }}
+  DALAMUD_CN_RUNTIME_URL: https://github.com/Dalamud-DailyRoutines/Dalamud/releases/latest/download/latest.7z
+  DALAMUD_GLOBAL_RUNTIME_URL: https://goatcorp.github.io/dalamud-distrib/latest.zip
+  DALAMUD_RUNTIME_SHA256: ${{ vars.AUTOFATRE_DALAMUD_RUNTIME_SHA256 }}
+
+jobs:
+  build:
+    name: Build and verify plugin
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Initialize FieldNavigation submodule
+        shell: pwsh
+        run: |
+          # Resolve the public shared repository explicitly so PRs from forks
+          # do not interpret the relative .gitmodules URL as a fork-local repo.
+          git config submodule.AutoFatre/FieldNavigation.url https://github.com/irimsky/FieldNavigation.git
+          git submodule update --init --recursive
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/packages.lock.json', 'global.json', 'Directory.Build.props', 'Directory.Build.targets') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Download Dalamud runtime
+        shell: pwsh
+        env:
+          RUNTIME_DIRECTORY: ${{ github.workspace }}\.dalamud-runtime
+        run: |
+          $region = $env:DALAMUD_REGION.Trim().ToLowerInvariant()
+          switch ($region) {
+            'cn' {
+              $runtimeUrl = $env:DALAMUD_CN_RUNTIME_URL
+            }
+            'global' {
+              $runtimeUrl = $env:DALAMUD_GLOBAL_RUNTIME_URL
+            }
+            default { throw "Unsupported Dalamud region '$region'. Use 'cn' or 'global'." }
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:DALAMUD_CUSTOM_RUNTIME_URL)) {
+            $runtimeUrl = $env:DALAMUD_CUSTOM_RUNTIME_URL
+            $expectedHash = $env:DALAMUD_CUSTOM_RUNTIME_SHA256
+          }
+          else {
+            $expectedHash = $env:DALAMUD_RUNTIME_SHA256
+          }
+
+          if ([string]::IsNullOrWhiteSpace($runtimeUrl)) {
+            throw "No Dalamud runtime URL is configured for region '$region'."
+          }
+          Write-Host "Using Dalamud region '$region': $runtimeUrl"
+          $archiveExtension = if ($runtimeUrl -match '\.7z(?:\?|$)') { '.7z' } else { '.zip' }
+          $archive = Join-Path $env:RUNNER_TEMP "autofatre-dalamud-runtime$archiveExtension"
+          Invoke-WebRequest -Uri $runtimeUrl -OutFile $archive
+
+          if (-not [string]::IsNullOrWhiteSpace($expectedHash)) {
+            $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expectedHash = $expectedHash.Trim().ToLowerInvariant()
+            if ($actualHash -ne $expectedHash) {
+              throw "Dalamud runtime SHA-256 mismatch. Expected $expectedHash, got $actualHash."
+            }
+            Write-Host "Dalamud runtime SHA-256 verified: $actualHash"
+          }
+          else {
+            Write-Warning 'Dalamud runtime SHA-256 is not configured; continuing with the selected runtime URL.'
+          }
+
+          if (Test-Path -LiteralPath $env:RUNTIME_DIRECTORY) {
+            Remove-Item -LiteralPath $env:RUNTIME_DIRECTORY -Recurse -Force
+          }
+          if ($archiveExtension -eq '.7z') {
+            $sevenZip = Get-Command 7z, 7z.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            $sevenZipPath = if ($null -ne $sevenZip) { $sevenZip.Source } else { Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+            if (-not (Test-Path -LiteralPath $sevenZipPath)) {
+              throw '7z is required to extract the configured Dalamud .7z runtime archive.'
+            }
+            & $sevenZipPath x $archive "-o$env:RUNTIME_DIRECTORY" -y
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to extract Dalamud runtime archive with 7z (exit code $LASTEXITCODE)."
+            }
+          }
+          else {
+            Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNTIME_DIRECTORY -Force
+          }
+
+          $runtimeAssembly = Get-ChildItem -LiteralPath $env:RUNTIME_DIRECTORY -Filter Dalamud.dll -File -Recurse | Select-Object -First 1
+          if ($null -eq $runtimeAssembly) {
+            throw "Downloaded Dalamud runtime does not contain Dalamud.dll: $runtimeUrl"
+          }
+
+          $runtimeVersion = [Reflection.AssemblyName]::GetAssemblyName($runtimeAssembly.FullName).Version
+          $commitFile = Get-ChildItem -LiteralPath $env:RUNTIME_DIRECTORY -Filter commit_hash.txt -File -Recurse | Select-Object -First 1
+          Write-Host "Dalamud runtime assembly version: $runtimeVersion"
+          if ($null -ne $commitFile) {
+            Write-Host "Dalamud runtime commit: $((Get-Content -LiteralPath $commitFile.FullName -Raw).Trim())"
+          }
+
+          "DALAMUD_RUNTIME_PATH=$($runtimeAssembly.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Dalamud runtime extracted to $($runtimeAssembly.Directory.FullName)"
+
+      - name: Restore and build Release
+        shell: pwsh
+        run: |
+          .\build.ps1 -Configuration Release -Restore -DotnetPath dotnet -DalamudLibPath "$env:DALAMUD_RUNTIME_PATH"
+
+      - name: Restore test project
+        shell: pwsh
+        run: |
+          dotnet restore .\AutoFatre.Tests\AutoFatre.Tests.csproj --packages .\.nuget "-p:DalamudLibPath=$env:DALAMUD_RUNTIME_PATH"
+
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          dotnet test .\AutoFatre.Tests\AutoFatre.Tests.csproj --configuration Release --no-restore "-p:DalamudLibPath=$env:DALAMUD_RUNTIME_PATH" --logger "trx;LogFileName=AutoFatre.Tests.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoFatre-test-results-${{ github.event.pull_request.number || 'manual' }}
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: Upload plugin package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoFatre-pr-${{ github.event.pull_request.number }}
+          path: AutoFatre/bin/Release/AutoFatre/latest.zip
+          if-no-files-found: error

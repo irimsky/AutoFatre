@@ -1,0 +1,52 @@
+<Project>
+  <!--
+    Dalamud's runtime assemblies are supplied by the local launcher or by CI;
+    they are not NuGet dependencies. The caller may provide DalamudLibPath,
+    AUTOFATRE_DALAMUD_LIB_PATH, DALAMUD_LIB_PATH, or DALAMUD_HOME.
+  -->
+  <PropertyGroup Condition="'$(AutoFatreUsesDalamud)' == 'true' and '$(DalamudLibPath)' == '' and '$(AUTOFATRE_DALAMUD_LIB_PATH)' != ''">
+    <DalamudLibPath>$(AUTOFATRE_DALAMUD_LIB_PATH)</DalamudLibPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(AutoFatreUsesDalamud)' == 'true' and '$(DalamudLibPath)' == '' and '$(DALAMUD_LIB_PATH)' != ''">
+    <DalamudLibPath>$(DALAMUD_LIB_PATH)</DalamudLibPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(AutoFatreUsesDalamud)' == 'true' and '$(DalamudLibPath)' == '' and '$(DALAMUD_HOME)' != ''">
+    <DalamudLibPath>$(DALAMUD_HOME)</DalamudLibPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(AutoFatreUsesDalamud)' == 'true' and '$(DalamudLibPath)' != ''">
+    <AssemblySearchPaths>$(AssemblySearchPaths);$(DalamudLibPath)</AssemblySearchPaths>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(AutoFatreUsesDalamud)' == 'true' and '$(DalamudLibPath)' != ''">
+    <Reference Update="Dalamud"><HintPath>$(DalamudLibPath)/Dalamud.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Dalamud.Common"><HintPath>$(DalamudLibPath)/Dalamud.Common.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Dalamud.Bindings.ImGui"><HintPath>$(DalamudLibPath)/Dalamud.Bindings.ImGui.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Dalamud.Bindings.ImPlot"><HintPath>$(DalamudLibPath)/Dalamud.Bindings.ImPlot.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Dalamud.Bindings.ImGuizmo"><HintPath>$(DalamudLibPath)/Dalamud.Bindings.ImGuizmo.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="FFXIVClientStructs"><HintPath>$(DalamudLibPath)/FFXIVClientStructs.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="InteropGenerator.Runtime"><HintPath>$(DalamudLibPath)/InteropGenerator.Runtime.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="ImGuiScene"><HintPath>$(DalamudLibPath)/ImGuiScene.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Lumina"><HintPath>$(DalamudLibPath)/Lumina.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Lumina.Excel"><HintPath>$(DalamudLibPath)/Lumina.Excel.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Newtonsoft.Json"><HintPath>$(DalamudLibPath)/Newtonsoft.Json.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Mono.Cecil"><HintPath>$(DalamudLibPath)/Mono.Cecil.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="TerraFX.Interop.Windows"><HintPath>$(DalamudLibPath)/TerraFX.Interop.Windows.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Reloaded.Hooks.Definitions"><HintPath>$(DalamudLibPath)/Reloaded.Hooks.Definitions.dll</HintPath><Private>False</Private></Reference>
+    <Reference Update="Serilog"><HintPath>$(DalamudLibPath)/Serilog.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="ResolveAutoFatreDalamudFramework"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(AutoFatreUsesDalamud)' == 'true'">
+    <Error Condition="'$(DalamudLibPath)' == ''"
+           Text="AutoFatre Dalamud runtime path is not configured. Pass -p:DalamudLibPath=&lt;path&gt; or set AUTOFATRE_DALAMUD_LIB_PATH, DALAMUD_LIB_PATH, or DALAMUD_HOME." />
+    <Error Condition="'$(DalamudLibPath)' != '' and !Exists('$(DalamudLibPath)/Dalamud.dll')"
+           Text="AutoFatre Dalamud runtime was not found at '$(DalamudLibPath)'." />
+    <Message Condition="'$(DalamudLibPath)' != ''"
+             Text="AutoFatre Dalamud runtime: $(DalamudLibPath)"
+             Importance="high" />
+  </Target>
+</Project>

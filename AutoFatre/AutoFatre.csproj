@@ -1,0 +1,33 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <AssemblyName>AutoFatre</AssemblyName>
+    <RootNamespace>AutoFatre</RootNamespace>
+    <AutoFatreUsesDalamud>true</AutoFatreUsesDalamud>
+    <Version>0.2.0.0</Version>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="AutoFatre.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Data\fate-catalog.json" LogicalName="AutoFatre.StaticFateCatalog.json" />
+    <EmbeddedResource Include="Data\fate-territories.json" LogicalName="AutoFatre.StaticFateTerritories.json" />
+  </ItemGroup>
+
+  <Target Name="RequireFieldNavigationSubmodule" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('FieldNavigation/NavigationSession.cs')"
+           Text="FieldNavigation submodule is missing. Run git submodule update --init --recursive (for the local sibling repository, add -c protocol.file.allow=always)." />
+  </Target>
+</Project>
