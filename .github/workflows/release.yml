@@ -354,3 +354,12 @@ jobs:
             gh pr edit $existing --repo $env:MANIFEST_REPOSITORY --title $title --body $body
           }
           if ($LASTEXITCODE -ne 0) { throw "Failed to create or update the manifest PR for $env:RELEASE_VERSION." }
+
+          $prUrl = gh pr list --repo $env:MANIFEST_REPOSITORY --head $branch --base main --state open --json url --jq '.[0].url'
+          if ([string]::IsNullOrWhiteSpace($prUrl)) {
+            throw "Could not find the manifest PR for $env:RELEASE_VERSION after creating or updating it."
+          }
+
+          gh pr merge $prUrl --repo $env:MANIFEST_REPOSITORY --auto --squash --delete-branch
+          if ($LASTEXITCODE -ne 0) { throw "Failed to enable auto-merge for manifest PR $prUrl." }
+          Write-Host "Auto-merge enabled for manifest PR $prUrl."
