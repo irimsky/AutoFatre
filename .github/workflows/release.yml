@@ -271,9 +271,11 @@ jobs:
         with:
           repository: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/DalamudPlugins' }}
           token: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
+          path: manifest
 
       - name: Update manifest entry
         shell: pwsh
+        working-directory: manifest
         env:
           REPOSITORY_NAME: ${{ github.repository }}
           RELEASE_VERSION: ${{ needs.release.outputs.release_version }}
@@ -281,9 +283,9 @@ jobs:
           DOWNLOAD_COUNT: ${{ needs.release.outputs.download_count }}
           LAST_UPDATE: ${{ needs.release.outputs.last_update }}
         run: |
-          .\autofatre\tools\Update-Manifest.ps1 `
+          ..\autofatre\tools\Update-Manifest.ps1 `
             -ManifestPath .\manifest.json `
-            -PluginManifestPath .\autofatre\AutoFatre\AutoFatre.json `
+            -PluginManifestPath ..\autofatre\AutoFatre\AutoFatre.json `
             -RepositoryUrl "https://github.com/$env:REPOSITORY_NAME" `
             -AssemblyVersion $env:ASSEMBLY_VERSION `
             -ReleaseTag $env:RELEASE_VERSION `
@@ -295,6 +297,7 @@ jobs:
       - name: Commit and push manifest update
         id: manifest-branch
         shell: pwsh
+        working-directory: manifest
         env:
           MANIFEST_REPOSITORY: ${{ vars.AUTOFATRE_MANIFEST_REPOSITORY || 'irimsky/DalamudPlugins' }}
           MANIFEST_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
