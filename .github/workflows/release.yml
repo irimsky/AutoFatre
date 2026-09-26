@@ -305,7 +305,8 @@ jobs:
         run: |
           $branch = "autofatre/release-$env:RELEASE_VERSION"
           $remoteBranch = (git ls-remote --heads origin $branch)
-          if (-not [string]::IsNullOrWhiteSpace($remoteBranch)) {
+          $branchExists = -not [string]::IsNullOrWhiteSpace($remoteBranch)
+          if ($branchExists) {
             git fetch origin "$branch`:$branch"
             if ($LASTEXITCODE -ne 0) { throw "Failed to fetch existing manifest branch $branch." }
             git checkout $branch
@@ -320,7 +321,13 @@ jobs:
           git diff --cached --quiet
           if ($LASTEXITCODE -eq 0) {
             "changed=false" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host 'Manifest already contains the released entry; no PR is needed.'
+            "needs_pr=$($branchExists.ToString().ToLowerInvariant())" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            if ($branchExists) {
+              Write-Host 'Manifest unchanged; an existing release branch will be checked for an open PR.'
+            }
+            else {
+              Write-Host 'Manifest already contains the released entry; no PR is needed.'
+            }
             exit 0
           }
 
@@ -329,9 +336,10 @@ jobs:
           git push origin "HEAD:$branch"
           if ($LASTEXITCODE -ne 0) { throw "Failed to push manifest branch $branch." }
           "changed=true" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "needs_pr=true" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Create or update manifest pull request
-        if: steps.manifest-branch.outputs.changed == 'true'
+        if: steps.manifest-branch.outputs.needs_pr == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.DALAMUD_MANIFEST_TOKEN }}
