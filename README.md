@@ -114,3 +114,5 @@ FATE 完成后，插件会先清理仍以本地玩家为目标的战斗 NPC，�
 ## 许可证
 
 [MIT License](LICENSE)
+
+CI workflow test.
