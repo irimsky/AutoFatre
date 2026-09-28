@@ -33,7 +33,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     private static readonly TimeSpan CollectionInteractionTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan FailedFateCooldown = TimeSpan.FromMinutes(5);
     // Idyllshire is the cross-zone fallback hub for maps whose outdoor aetheryte is not unlocked.
-    // The Territory id is read from the game's Aetheryte sheet at runtime when possible.
+    // Stable Territory id for Idyllshire/田园郡 in the supported client data.
     private const uint IdyllshireTerritoryFallback = 478;
 
     public sealed record FateCandidateSnapshot(
@@ -1093,6 +1093,12 @@ public sealed unsafe class FateAutomationController : IDisposable
                 return;
             }
 
+            // A territory change temporarily clears the player object and can raise Logout.
+            // Keep a user pause/fault intact while that happens; otherwise this branch would
+            // move Paused to WaitingForLogin and OnLogin would resume automation afterwards.
+            if (this.state is AutomationState.Paused or AutomationState.Faulted)
+                return;
+
             if (this.configuration.Enabled && this.state != AutomationState.WaitingForLogin)
                 this.Transition(AutomationState.WaitingForLogin, "等待角色数据");
             return;
@@ -2060,23 +2066,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     }
 
     private uint ResolveIdyllshireTerritory()
-    {
-        try
-        {
-            uint fromSheet = this.dataManager.GetExcelSheet<Aetheryte>()
-                .Where(row => row.Territory.RowId != 0
-                    && row.PlaceName.ValueNullable?.Name.ToString() is { } name
-                    && (name.Contains("Idyllshire", StringComparison.OrdinalIgnoreCase)
-                        || name.Contains("田园郡", StringComparison.Ordinal)))
-                .Select(row => row.Territory.RowId)
-                .FirstOrDefault();
-            return fromSheet != 0 ? fromSheet : IdyllshireTerritoryFallback;
-        }
-        catch
-        {
-            return IdyllshireTerritoryFallback;
-        }
-    }
+        => IdyllshireTerritoryFallback;
 
     private uint? ResolveAethernetDestination(uint territoryId)
     {
@@ -5105,6 +5095,17 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private static LostPriorityTargetKind? GetLostPriorityTargetKind(IBattleNpc target)
     {
+        // These BNpc identities are stable across client languages. Only fall back to the
+        // localized object name when the client did not expose either ID.
+        if (target.BaseId == 7586 || target.NameId == 6737)
+            return LostPriorityTargetKind.LostGirl;
+
+        if (target.NameId == 6738)
+            return LostPriorityTargetKind.LostOne;
+
+        if (target.BaseId != 0 || target.NameId != 0)
+            return null;
+
         string name = string.Concat(target.Name.ToString().Normalize(System.Text.NormalizationForm.FormKC)
             .Where(character => !char.IsWhiteSpace(character)));
         if (name.Equals("迷失少女", StringComparison.Ordinal)
