@@ -60,7 +60,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          # Manual runs use the selected workflow branch as the source of the
+          # package and manifest metadata; tag is the release identity.
+          # Tag-triggered runs still use the pushed tag through github.ref.
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Initialize FieldNavigation submodule
@@ -264,7 +267,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: autofatre
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ github.ref }}
 
       - name: Checkout external Dalamud manifest repository
         uses: actions/checkout@v4
@@ -368,6 +371,16 @@ jobs:
             throw "Could not find the manifest PR for $env:RELEASE_VERSION after creating or updating it."
           }
 
-          gh pr merge $prUrl --repo $env:MANIFEST_REPOSITORY --auto --squash --delete-branch
-          if ($LASTEXITCODE -ne 0) { throw "Failed to enable auto-merge for manifest PR $prUrl." }
-          Write-Host "Auto-merge enabled for manifest PR $prUrl."
+          $mergeState = (gh pr view $prUrl --repo $env:MANIFEST_REPOSITORY --json mergeStateStatus --jq '.mergeStateStatus').Trim().ToUpperInvariant()
+          if ($LASTEXITCODE -ne 0) { throw "Failed to read merge state for manifest PR $prUrl." }
+
+          if ($mergeState -eq 'CLEAN') {
+            gh pr merge $prUrl --repo $env:MANIFEST_REPOSITORY --squash --delete-branch
+            if ($LASTEXITCODE -ne 0) { throw "Failed to merge clean manifest PR $prUrl." }
+            Write-Host "Merged clean manifest PR $prUrl."
+          }
+          else {
+            gh pr merge $prUrl --repo $env:MANIFEST_REPOSITORY --auto --squash --delete-branch
+            if ($LASTEXITCODE -ne 0) { throw "Failed to enable auto-merge for manifest PR $prUrl." }
+            Write-Host "Auto-merge enabled for manifest PR $prUrl (merge state: $mergeState)."
+          }

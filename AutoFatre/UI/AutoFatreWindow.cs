@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin;
@@ -200,9 +201,12 @@ public sealed class AutoFatreWindow : IDisposable
                 {
                     MapPreset map = maps[i];
                     bool current = i == this.controller.PresetIndex;
-                    string mapName = map.TerritoryId == 0
-                        ? this.selectionCatalog.GetTerritoryName(this.controller.CurrentTerritory)
-                        : this.selectionCatalog.GetTerritoryName(map.TerritoryId);
+                    uint displayTerritory = map.TerritoryId == 0 && current
+                        ? this.controller.DesiredTerritory
+                        : map.TerritoryId == 0
+                            ? this.controller.CurrentTerritory
+                            : map.TerritoryId;
+                    string mapName = this.selectionCatalog.GetTerritoryName(displayTerritory);
                     if (string.IsNullOrWhiteSpace(mapName))
                         mapName = $"地图 {i + 1}";
 
@@ -223,7 +227,11 @@ public sealed class AutoFatreWindow : IDisposable
                             Vector4 progressColor = completed >= target
                                 ? new Vector4(0.35f, 0.9f, 0.45f, 1f)
                                 : NeutralValueColor;
-                            DrawOverlayField(GetOverlayStopConditionLabel(stop), $"{completed} / {target}", progressColor);
+                            DrawOverlayField(
+                                GetOverlayStopConditionLabel(stop),
+                                $"{completed} / {target}",
+                                progressColor,
+                                progressColor);
                         }
                     }
                     ImGui.Unindent(16f);
@@ -243,9 +251,9 @@ public sealed class AutoFatreWindow : IDisposable
         _ => $"└ {StopKindLabel(stop.Kind)}",
     };
 
-    private static void DrawOverlayField(string label, string value, Vector4 valueColor)
+    private static void DrawOverlayField(string label, string value, Vector4 valueColor, Vector4? labelColor = null)
     {
-        ImGui.TextColored(LabelColor, $"{label}：");
+        ImGui.TextColored(labelColor ?? LabelColor, $"{label}：");
         ImGui.SameLine(0f, 6f);
         ImGui.PushStyleColor(ImGuiCol.Text, valueColor);
         ImGui.TextWrapped(string.IsNullOrWhiteSpace(value) ? "无" : value);
@@ -376,6 +384,7 @@ public sealed class AutoFatreWindow : IDisposable
             ImGui.TableSetupColumn("距离", ImGuiTableColumnFlags.WidthStretch, 1.0f);
             ImGui.TableSetupColumn("类型", ImGuiTableColumnFlags.WidthStretch, 1.5f);
             ImGui.TableSetupColumn("评分", ImGuiTableColumnFlags.WidthStretch, 2.6f);
+            ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             foreach (var fate in this.controller.CandidateSnapshot)
             {
@@ -1090,6 +1099,40 @@ public sealed class AutoFatreWindow : IDisposable
                 1,
                 4))
             this.configuration.MaxAggroCount = aggro;
+        bool prioritizeLost = this.configuration.PrioritizeLostGirlAndLostOne;
+        if (DrawSettingCheckbox(
+                "优先攻击迷失少女/迷失者",
+                "advanced-prioritize-lost",
+                "勾选后，当前 FATE 中出现迷失少女或迷失者时会暂时锁定并优先击杀，目标死亡或消失后恢复原有选怪逻辑。仅在 FATE 剩余时间达到对应阈值时触发。",
+                ref prioritizeLost))
+        {
+            this.configuration.PrioritizeLostGirlAndLostOne = prioritizeLost;
+        }
+        if (this.configuration.PrioritizeLostGirlAndLostOne)
+        {
+            int lostGirlThreshold = this.configuration.LostGirlRemainingTimeThresholdSeconds;
+            if (DrawSettingSliderInt(
+                    "迷失少女击杀剩余时间阈值（秒）",
+                    "advanced-lost-girl-threshold",
+                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失少女；设为 0 表示不限制剩余时间。默认 180 秒（3 分钟）。",
+                    ref lostGirlThreshold,
+                    0,
+                    600))
+            {
+                this.configuration.LostGirlRemainingTimeThresholdSeconds = lostGirlThreshold;
+            }
+            int lostOneThreshold = this.configuration.LostOneRemainingTimeThresholdSeconds;
+            if (DrawSettingSliderInt(
+                    "迷失者击杀剩余时间阈值（秒）",
+                    "advanced-lost-one-threshold",
+                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失者；设为 0 表示不限制剩余时间。默认 240 秒（4 分钟）。",
+                    ref lostOneThreshold,
+                    0,
+                    600))
+            {
+                this.configuration.LostOneRemainingTimeThresholdSeconds = lostOneThreshold;
+            }
+        }
         PullRefillPolicy refillPolicy = this.configuration.PullRefillPolicy;
         this.DrawEnumCombo(
             "补充拉怪时机",
@@ -1209,9 +1252,6 @@ public sealed class AutoFatreWindow : IDisposable
                 200f,
                 "%.0f yalms"))
             this.configuration.CombatEscapeDistance = combatEscapeDistance;
-        ImGui.TextWrapped("战斗中离开 FATE 区域会自动返回中心并重新同步。战后没有可见仇恨目标但仍处于战斗时，会先向远处跑；超时仍未脱战且角色不在小队中，则以解除限制进入泰坦歼灭战并立即退出。该操作只接管 AutoFatre 自己建立的副本队列。");
-        ImGui.Spacing();
-        ImGui.TextWrapped("启用飞行后，AutoFatre 会在脱战后先上坐骑；进入 FATE 半径后停止 vnavmesh，并按住游戏原生下降输入直至落地，再下坐骑和同步等级。讨伐BOSS 类 FATE 每次选择最大生命值最高的可攻击目标；消灭普通怪物类 FATE 才应用主动拉取上限。攻击技能仍由外部战斗插件执行。");
     }
 
     private void DrawFateBlacklist()
@@ -1254,6 +1294,10 @@ public sealed class AutoFatreWindow : IDisposable
             new Vector2(0, 180f),
             true,
             ImGuiWindowFlags.AlwaysVerticalScrollbar);
+        bool blacklistHovered = ImGui.IsWindowHovered();
+        float blacklistWheel = ImGui.GetIO().MouseWheel;
+        float blacklistScroll = ImGui.GetScrollY();
+        float blacklistScrollMax = ImGui.GetScrollMaxY();
         if (this.configuration.FateBlacklist.Count == 0)
         {
             ImGui.TextDisabled("当前没有屏蔽的 FATE。");
@@ -1274,6 +1318,15 @@ public sealed class AutoFatreWindow : IDisposable
             }
         }
         ImGui.EndChild();
+        if (blacklistHovered
+            && blacklistScrollMax > 0f
+            && blacklistWheel != 0f
+            && ((blacklistWheel > 0f && blacklistScroll <= 0.5f)
+                || (blacklistWheel < 0f && blacklistScroll >= blacklistScrollMax - 0.5f)))
+        {
+            float scrollStep = ImGui.GetTextLineHeight() * 5f;
+            ImGui.SetScrollY(ImGui.GetScrollY() - blacklistWheel * scrollStep);
+        }
         ImGui.PopStyleColor(2);
 
         if (removeIndex >= 0)
@@ -1604,7 +1657,14 @@ public sealed class AutoFatreWindow : IDisposable
                     ? $"{fate.MapName ?? "地图未知"} | {fate.ClientName}"
                     : fate.ClientName;
                 string blacklistMark = this.configuration.FateBlacklist.Contains(fate.FateId) ? "✓ " : string.Empty;
-                if (ImGui.Selectable($"{blacklistMark}{optionName}{series}##fate-{fate.FateId}-{selectorKey}", selected))
+                string optionText = $"{blacklistMark}{optionName}{series}";
+                string optionMetadata = $"{fate.TypeName}{(fate.IsAutomationSupported ? string.Empty : " · 暂未支持")} · 编号 {fate.FateId}";
+                if (this.DrawWrappedFateOption(
+                        optionText,
+                        optionMetadata,
+                        $"fate-{fate.FateId}-{selectorKey}",
+                        selected,
+                        out bool optionHovered))
                 {
                     fateId = fate.FateId;
                     if (showRecent)
@@ -1612,9 +1672,7 @@ public sealed class AutoFatreWindow : IDisposable
                     if (closeOnSelect)
                         this.CompleteSelection(selectorKey);
                 }
-                ImGui.SameLine();
-                ImGui.TextDisabled($"{fate.TypeName}{(fate.IsAutomationSupported ? string.Empty : " · 暂未支持")} · 编号 {fate.FateId}");
-                if (ImGui.IsItemHovered())
+                if (optionHovered)
                 {
                     string trigger = fate.Enrichment?.Trigger is { } knownTrigger
                                      && !string.IsNullOrWhiteSpace(knownTrigger)
@@ -1622,8 +1680,6 @@ public sealed class AutoFatreWindow : IDisposable
                         : "未知信息";
                     ImGui.SetTooltip($"触发条件：{trigger}");
                 }
-                if (selected)
-                    ImGui.SetItemDefaultFocus();
                 if (++shown >= maxResults)
                 {
                     ImGui.TextDisabled($"仅显示前 {maxResults} 条结果，请继续缩小关键词范围。");
@@ -1662,16 +1718,19 @@ public sealed class AutoFatreWindow : IDisposable
                 ? $"{fate.MapName ?? "地图未知"} | {fate.ClientName}"
                 : fate.ClientName;
             string blacklistMark = this.configuration.FateBlacklist.Contains(fate.FateId) ? "✓ " : string.Empty;
-            if (ImGui.Selectable($"{blacklistMark}{optionName}{series}##recent-fate-{fate.FateId}-{selectorKey}", selected))
+            string optionText = $"{blacklistMark}{optionName}{series}";
+            string optionMetadata = $"{fate.TypeName} · 编号 {fate.FateId}";
+            if (this.DrawWrappedFateOption(
+                    optionText,
+                    optionMetadata,
+                    $"recent-fate-{fate.FateId}-{selectorKey}",
+                    selected,
+                    out _))
             {
                 fateId = fate.FateId;
                 this.RecordRecentFate(fate.FateId);
                 this.CompleteSelection(selectorKey);
             }
-            ImGui.SameLine();
-            ImGui.TextDisabled($"{fate.TypeName} · 编号 {fate.FateId}");
-            if (selected)
-                ImGui.SetItemDefaultFocus();
             shown++;
         }
 
@@ -1688,6 +1747,83 @@ public sealed class AutoFatreWindow : IDisposable
         if (this.configuration.RecentTargetFateIds.Count > 15)
             this.configuration.RecentTargetFateIds.RemoveRange(15, this.configuration.RecentTargetFateIds.Count - 15);
         this.pluginInterface.SavePluginConfig(this.configuration);
+    }
+
+    private bool DrawWrappedFateOption(
+        string text,
+        string metadata,
+        string key,
+        bool selected,
+        out bool hovered)
+    {
+        string wrapped = WrapSelectorText(text);
+        Vector2 stylePadding = ImGui.GetStyle().FramePadding;
+        float availableWidth = MathF.Max(180f, ImGui.GetContentRegionAvail().X - stylePadding.X * 2f);
+        bool inlineMetadata = !wrapped.Contains('\n')
+            && ImGui.CalcTextSize(wrapped).X + ImGui.GetStyle().ItemSpacing.X + ImGui.CalcTextSize(metadata).X <= availableWidth;
+        float textHeight = ImGui.CalcTextSize(wrapped).Y;
+        if (!inlineMetadata)
+            textHeight += ImGui.GetStyle().ItemSpacing.Y + ImGui.GetTextLineHeight();
+        float height = textHeight + stylePadding.Y * 2f;
+
+        Vector2 rowStart = ImGui.GetCursorScreenPos();
+        bool pressed = ImGui.Selectable($"##{key}", selected, ImGuiSelectableFlags.None, new Vector2(0f, height));
+        hovered = ImGui.IsItemHovered();
+        if (selected)
+            ImGui.SetItemDefaultFocus();
+        Vector2 rowEnd = ImGui.GetCursorScreenPos();
+
+        ImGui.SetCursorScreenPos(rowStart + new Vector2(stylePadding.X, stylePadding.Y));
+        ImGui.TextUnformatted(wrapped);
+        if (inlineMetadata)
+        {
+            ImGui.SameLine(0f, ImGui.GetStyle().ItemSpacing.X);
+            ImGui.TextDisabled(metadata);
+        }
+        else
+        {
+            ImGui.TextDisabled(metadata);
+        }
+        ImGui.SetCursorScreenPos(rowEnd);
+        return pressed;
+    }
+
+    private static string WrapSelectorText(string text)
+    {
+        float maximumWidth = MathF.Max(180f, ImGui.GetContentRegionAvail().X - 12f);
+        if (!text.Contains('\n') && ImGui.CalcTextSize(text).X <= maximumWidth)
+            return text;
+
+        var wrapped = new StringBuilder(text.Length + 16);
+        var line = new StringBuilder();
+        foreach (char character in text)
+        {
+            if (character == '\n')
+            {
+                AppendWrappedLine(wrapped, line);
+                line.Clear();
+                continue;
+            }
+
+            string candidate = line.ToString() + character;
+            if (line.Length > 0 && ImGui.CalcTextSize(candidate).X > maximumWidth)
+            {
+                AppendWrappedLine(wrapped, line);
+                line.Clear();
+            }
+
+            line.Append(character);
+        }
+
+        AppendWrappedLine(wrapped, line);
+        return wrapped.ToString();
+    }
+
+    private static void AppendWrappedLine(StringBuilder destination, StringBuilder line)
+    {
+        if (destination.Length > 0)
+            destination.Append('\n');
+        destination.Append(line);
     }
 
     private void DrawItemSelector(string label, string selectorKey, ref uint itemId, float maximumWidth = 420f)
@@ -2054,10 +2190,10 @@ public sealed class AutoFatreWindow : IDisposable
             this.controller.PreviewSoundAlert(value);
     }
 
-    private void SetSelectorWidth(float maximum = 420f)
+    private void SetSelectorWidth(float maximum = 520f)
     {
         float available = ImGui.GetContentRegionAvail().X;
-        float width = Math.Min(maximum, Math.Max(220f, available * 0.65f));
+        float width = Math.Min(maximum, Math.Max(220f, available * 0.8f));
         ImGui.SetNextItemWidth(width);
     }
 

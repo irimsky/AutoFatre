@@ -106,15 +106,9 @@ function Assert-AutoFatreWorkspaceClean {
         [string]$WorkingDirectory
     )
 
-    $status = Get-CommandOutput 'git' @('status', '--porcelain', '--untracked-files=no') $WorkingDirectory
+    $status = Get-CommandOutput 'git' @('status', '--porcelain', '--untracked-files=all') $WorkingDirectory
     if (-not [string]::IsNullOrWhiteSpace($status)) {
-        throw "AutoFatre 工作区存在已跟踪的未提交改动：`n$status"
-    }
-
-    $untrackedFiles = Get-CommandOutput 'git' @('ls-files', '--others', '--exclude-standard', '--full-name') $WorkingDirectory
-    $untrackedCompileSources = @($untrackedFiles -split "`r?`n" | Where-Object { $_ -match '\.cs$' })
-    if ($untrackedCompileSources.Count -gt 0) {
-        throw "AutoFatre 工作区存在可能进入插件编译的未跟踪 C# 源文件：`n$($untrackedCompileSources -join [Environment]::NewLine)"
+        throw "AutoFatre 工作区存在未提交或未跟踪的文件：`n$status"
     }
 }
 
