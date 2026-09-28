@@ -5,6 +5,23 @@ namespace AutoFatre.Tests;
 public sealed class ConfigurationTests
 {
     [Fact]
+    public void NewConfiguration_DefaultsToSilentAlertsAndChocoboCompanion()
+    {
+        AutoFatreConfiguration configuration = new();
+
+        Assert.True(configuration.AutoSummonChocoboCompanion);
+        Assert.False(configuration.EnableSoundAlerts);
+        Assert.Equal(0u, configuration.SoundAlertEffectId);
+        Assert.Equal(0u, configuration.SoundAlertTargetAppearedEffectId);
+        Assert.Equal(0u, configuration.SoundAlertFateCompletedEffectId);
+        Assert.Equal(0u, configuration.SoundAlertDeathEffectId);
+        Assert.Equal(0u, configuration.SoundAlertNavigationSkippedEffectId);
+        Assert.False(configuration.PrioritizeLostGirlAndLostOne);
+        Assert.Equal(180, configuration.LostGirlRemainingTimeThresholdSeconds);
+        Assert.Equal(240, configuration.LostOneRemainingTimeThresholdSeconds);
+    }
+
+    [Fact]
     public void Normalize_ClampsValuesAndRemovesInvalidIds()
     {
         AutoFatreConfiguration configuration = new()
@@ -13,6 +30,8 @@ public sealed class ConfigurationTests
             MaxAggroCount = 99,
             MaxRecoveryAttempts = -1,
             AggroConfirmationTimeoutSeconds = 999,
+            LostGirlRemainingTimeThresholdSeconds = -1,
+            LostOneRemainingTimeThresholdSeconds = 999,
             FateBlacklist = [0, 840, 840, 398],
             RecentTargetFateIds = [0, 852, 852, 1949],
             TargetFateIds = [0, 840, 840],
@@ -40,6 +59,8 @@ public sealed class ConfigurationTests
         Assert.Equal(4, configuration.MaxAggroCount);
         Assert.Equal(0, configuration.MaxRecoveryAttempts);
         Assert.Equal(60, configuration.AggroConfirmationTimeoutSeconds);
+        Assert.Equal(0, configuration.LostGirlRemainingTimeThresholdSeconds);
+        Assert.Equal(600, configuration.LostOneRemainingTimeThresholdSeconds);
         Assert.Equal(new ushort[] { 398, 840 }, configuration.FateBlacklist);
         Assert.Equal(new ushort[] { 852, 1949 }, configuration.RecentTargetFateIds);
         Assert.Equal(new ushort[] { 840 }, configuration.TargetFateIds);
@@ -73,7 +94,7 @@ public sealed class ConfigurationTests
         Assert.Contains(migratedMap.StopConditions, condition => condition.Kind == StopConditionKind.FateCount);
         Assert.Contains(migratedMap.StopConditions, condition => condition.Kind == StopConditionKind.TargetFate && condition.TargetFateId == 840);
         Assert.Null(migratedMap.StopCondition);
-        Assert.Equal(17, configuration.Version);
+        Assert.Equal(18, configuration.Version);
     }
 
     [Fact]

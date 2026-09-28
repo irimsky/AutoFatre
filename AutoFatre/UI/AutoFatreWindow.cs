@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin;
@@ -200,9 +201,12 @@ public sealed class AutoFatreWindow : IDisposable
                 {
                     MapPreset map = maps[i];
                     bool current = i == this.controller.PresetIndex;
-                    string mapName = map.TerritoryId == 0
-                        ? this.selectionCatalog.GetTerritoryName(this.controller.CurrentTerritory)
-                        : this.selectionCatalog.GetTerritoryName(map.TerritoryId);
+                    uint displayTerritory = map.TerritoryId == 0 && current
+                        ? this.controller.DesiredTerritory
+                        : map.TerritoryId == 0
+                            ? this.controller.CurrentTerritory
+                            : map.TerritoryId;
+                    string mapName = this.selectionCatalog.GetTerritoryName(displayTerritory);
                     if (string.IsNullOrWhiteSpace(mapName))
                         mapName = $"地图 {i + 1}";
 
@@ -223,7 +227,11 @@ public sealed class AutoFatreWindow : IDisposable
                             Vector4 progressColor = completed >= target
                                 ? new Vector4(0.35f, 0.9f, 0.45f, 1f)
                                 : NeutralValueColor;
-                            DrawOverlayField(GetOverlayStopConditionLabel(stop), $"{completed} / {target}", progressColor);
+                            DrawOverlayField(
+                                GetOverlayStopConditionLabel(stop),
+                                $"{completed} / {target}",
+                                progressColor,
+                                progressColor);
                         }
                     }
                     ImGui.Unindent(16f);
@@ -243,9 +251,9 @@ public sealed class AutoFatreWindow : IDisposable
         _ => $"└ {StopKindLabel(stop.Kind)}",
     };
 
-    private static void DrawOverlayField(string label, string value, Vector4 valueColor)
+    private static void DrawOverlayField(string label, string value, Vector4 valueColor, Vector4? labelColor = null)
     {
-        ImGui.TextColored(LabelColor, $"{label}：");
+        ImGui.TextColored(labelColor ?? LabelColor, $"{label}：");
         ImGui.SameLine(0f, 6f);
         ImGui.PushStyleColor(ImGuiCol.Text, valueColor);
         ImGui.TextWrapped(string.IsNullOrWhiteSpace(value) ? "无" : value);
@@ -311,13 +319,12 @@ public sealed class AutoFatreWindow : IDisposable
 
         DrawSectionTitle("角色状态");
         Vector4 mountColor = this.controller.IsMounted ? new Vector4(0.35f, 0.8f, 1f, 1f) : new Vector4(0.65f, 0.65f, 0.68f, 1f);
-        DrawStatusGrid(
-            "CharacterStatusGrid",
-            ("坐骑", this.controller.IsMounted ? (this.controller.IsInFlight ? "飞行中" : "地面坐骑") : "步行", mountColor),
-            ("等级同步", this.controller.IsLevelSynced ? "已同步" : "未同步", this.controller.IsLevelSynced ? new Vector4(0.35f, 0.9f, 0.45f, 1f) : new Vector4(0.95f, 0.7f, 0.25f, 1f)),
-            ("陆行鸟", $"{(this.controller.HasChocoboCompanion ? "已召唤" : "未召唤")}，剩余 {this.controller.ChocoboTimeLeft:0} 秒，基萨尔野菜 {this.controller.GysahlGreensCount}", this.controller.HasChocoboCompanion ? new Vector4(0.35f, 0.9f, 0.45f, 1f) : new Vector4(0.95f, 0.55f, 0.35f, 1f)),
-            ("宠物", this.controller.CurrentMinionName, NeutralValueColor),
-            ("主手武器", this.controller.CurrentMainHandName, NeutralValueColor));
+        string minionName = string.IsNullOrWhiteSpace(this.controller.CurrentMinionName) ? "无" : this.controller.CurrentMinionName;
+        string mainHandName = string.IsNullOrWhiteSpace(this.controller.CurrentMainHandName) ? "无" : this.controller.CurrentMainHandName;
+        DrawCharacterStatusGrid(
+            mountColor,
+            minionName,
+            mainHandName);
 
         DrawSectionTitle("当前任务");
         List<(string Label, string Value, Vector4 Color)> taskStatus = [];
@@ -376,6 +383,7 @@ public sealed class AutoFatreWindow : IDisposable
             ImGui.TableSetupColumn("距离", ImGuiTableColumnFlags.WidthStretch, 1.0f);
             ImGui.TableSetupColumn("类型", ImGuiTableColumnFlags.WidthStretch, 1.5f);
             ImGui.TableSetupColumn("评分", ImGuiTableColumnFlags.WidthStretch, 2.6f);
+            ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             foreach (var fate in this.controller.CandidateSnapshot)
             {
@@ -428,6 +436,38 @@ public sealed class AutoFatreWindow : IDisposable
         }
 
         ImGui.EndTable();
+    }
+
+    private void DrawCharacterStatusGrid(Vector4 mountColor, string minionName, string mainHandName)
+    {
+        if (!ImGui.BeginTable("CharacterStatusGrid", 2, ImGuiTableFlags.SizingStretchSame | ImGuiTableFlags.BordersInnerV))
+            return;
+
+        ImGui.TableNextRow();
+        DrawStatusCell(("坐骑", this.controller.IsMounted ? (this.controller.IsInFlight ? "飞行中" : "地面坐骑") : "步行", mountColor));
+        DrawStatusCell(("等级同步", this.controller.IsLevelSynced ? "已同步" : "未同步", this.controller.IsLevelSynced ? new Vector4(0.35f, 0.9f, 0.45f, 1f) : new Vector4(0.95f, 0.7f, 0.25f, 1f)));
+
+        ImGui.TableNextRow();
+        DrawStatusCell(("陆行鸟", $"{(this.controller.HasChocoboCompanion ? "已召唤" : "未召唤")}，剩余 {this.controller.ChocoboTimeLeft:0} 秒，基萨尔野菜 {this.controller.GysahlGreensCount}", this.controller.HasChocoboCompanion ? new Vector4(0.35f, 0.9f, 0.45f, 1f) : new Vector4(0.95f, 0.55f, 0.35f, 1f)));
+        ImGui.TableNextColumn();
+        DrawEquipmentStatus(minionName, mainHandName);
+
+        ImGui.EndTable();
+    }
+
+    private static void DrawEquipmentStatus(string minionName, string mainHandName)
+    {
+        ImGui.TextColored(LabelColor, "宠物：");
+        ImGui.SameLine(0, 4);
+        ImGui.TextColored(new Vector4(0.72f, 0.76f, 0.8f, 1f), minionName);
+        ImGui.SameLine(0, 8);
+        ImGui.TextColored(LabelColor, "|");
+        ImGui.SameLine(0, 8);
+        ImGui.TextColored(LabelColor, "主手武器：");
+        ImGui.SameLine(0, 4);
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X);
+        ImGui.TextColored(new Vector4(0.72f, 0.76f, 0.8f, 1f), mainHandName);
+        ImGui.PopTextWrapPos();
     }
 
     private static void DrawStatusCell((string Label, string Value, Vector4 Color) entry)
@@ -995,6 +1035,7 @@ public sealed class AutoFatreWindow : IDisposable
 
     private void DrawAdvancedTab()
     {
+        DrawSectionTitle("界面");
         bool showOverlay = this.configuration.ShowOverlayWindow;
         if (DrawSettingCheckbox(
                 "显示悬浮窗",
@@ -1005,27 +1046,213 @@ public sealed class AutoFatreWindow : IDisposable
             this.configuration.ShowOverlayWindow = showOverlay;
             this.setOverlayWindowVisibility(showOverlay);
         }
-        ImGui.Separator();
 
-        DrawSectionTitle("伙伴设置");
+        DrawSectionTitle("伙伴");
         bool autoChocobo = this.configuration.AutoSummonChocoboCompanion;
         if (DrawSettingCheckbox(
-                "自动召唤/延长陆行鸟伙伴",
+                "自动维护陆行鸟",
                 "advanced-chocobo",
                 "启用后，进入地图、传送到达和前往 FATE 等安全时机会自动召唤或延长战斗陆行鸟。",
                 ref autoChocobo))
             this.configuration.AutoSummonChocoboCompanion = autoChocobo;
-        DrawSectionTitle("音效提醒");
+
+        DrawSectionTitle("FATE 与移动");
+        bool fly = this.configuration.FlyToFates;
+        if (DrawSettingCheckbox(
+                "飞行前往",
+                "advanced-fly-to-fates",
+                "启用后，脱战时优先骑乘并飞行前往目标 FATE；接近 FATE 后会落地、下坐骑并进行等级同步。",
+                ref fly))
+            this.configuration.FlyToFates = fly;
+        int nextFateDelay = this.configuration.NextFateDelaySeconds;
+        if (DrawSettingSliderInt(
+                "下个 FATE 延迟",
+                "advanced-next-fate-delay",
+                "选择下一个 FATE 后、开始导航前等待多久；0 表示不延迟，1 表示固定延迟 1 秒，2 以上表示在 2 秒到当前值之间随机延迟。",
+                ref nextFateDelay,
+                0,
+                60))
+            this.configuration.NextFateDelaySeconds = nextFateDelay;
+
+        this.DrawFateBlacklist();
+
+        DrawSectionTitle("战斗");
+        int aggro = this.configuration.MaxAggroCount;
+        if (DrawSettingSliderInt(
+                "拉怪上限",
+                "advanced-max-aggro",
+                "普通怪物类 FATE 中，主动吸引并保持仇恨的目标数量上限；BOSS 类 FATE 不使用此设置。",
+                ref aggro,
+                1,
+                4))
+            this.configuration.MaxAggroCount = aggro;
+        PullRefillPolicy refillPolicy = this.configuration.PullRefillPolicy;
+        this.DrawEnumCombo(
+            "补充拉怪时机",
+            "advanced-pull-refill",
+            "决定当前一批目标减少后何时再次主动拉怪；可选择剩余目标较少时补充，或整批清空后再拉。",
+            ref refillPolicy,
+            PullRefillPolicyLabel);
+        this.configuration.PullRefillPolicy = refillPolicy;
+        ImGui.TextDisabled(refillPolicy == PullRefillPolicy.RefillAtHalf
+            ? $"当前战斗目标不多于 {this.configuration.MaxAggroCount / 2} 只时补充至上限。"
+            : "本批目标全部死亡后才开始下一批。");
+        float approach = this.configuration.PullApproachDistance;
+        if (DrawSettingSliderFloat(
+                "拉怪距离",
+                "advanced-pull-approach",
+                "主动拉怪时接近目标到多少 yalms 后停止移动并等待建立仇恨；数值越小越接近目标。",
+                ref approach,
+                1f,
+                20f,
+                "%.1f yalms"))
+            this.configuration.PullApproachDistance = approach;
+        int aggroTimeout = this.configuration.AggroConfirmationTimeoutSeconds;
+        if (DrawSettingSliderInt(
+                "仇恨确认超时",
+                "advanced-aggro-timeout",
+                "到达拉怪接近距离后，等待目标确认正在攻击玩家的最长时间；超时后会尝试处理或跳过目标。",
+                ref aggroTimeout,
+                2,
+                60))
+            this.configuration.AggroConfirmationTimeoutSeconds = aggroTimeout;
+        int targetCooldown = this.configuration.SkippedTargetCooldownSeconds;
+        if (DrawSettingSliderInt(
+                "跳过冷却",
+                "advanced-target-cooldown",
+                "某个目标暂时无法处理而被跳过后，在这段时间内不会立即重复选择它。",
+                ref targetCooldown,
+                5,
+                300))
+            this.configuration.SkippedTargetCooldownSeconds = targetCooldown;
+
+        DrawSectionTitle("优先目标");
+        bool prioritizeLost = this.configuration.PrioritizeLostGirlAndLostOne;
+        if (DrawSettingCheckbox(
+                "优先击杀迷失目标",
+                "advanced-prioritize-lost",
+                "勾选后，当前 FATE 中出现迷失少女或迷失者时会暂时锁定并优先击杀，目标死亡或消失后恢复原有选怪逻辑。仅在 FATE 剩余时间达到对应阈值时触发。",
+                ref prioritizeLost))
+        {
+            this.configuration.PrioritizeLostGirlAndLostOne = prioritizeLost;
+        }
+        if (this.configuration.PrioritizeLostGirlAndLostOne)
+        {
+            int lostGirlThreshold = this.configuration.LostGirlRemainingTimeThresholdSeconds;
+            if (DrawSettingSliderInt(
+                    "少女触发阈值",
+                    "advanced-lost-girl-threshold",
+                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失少女；单位为秒，设为 0 表示不限制。默认 180 秒（3 分钟）。",
+                    ref lostGirlThreshold,
+                    0,
+                    600))
+            {
+                this.configuration.LostGirlRemainingTimeThresholdSeconds = lostGirlThreshold;
+            }
+            int lostOneThreshold = this.configuration.LostOneRemainingTimeThresholdSeconds;
+            if (DrawSettingSliderInt(
+                    "迷失者触发阈值",
+                    "advanced-lost-one-threshold",
+                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失者；单位为秒，设为 0 表示不限制。默认 240 秒（4 分钟）。",
+                    ref lostOneThreshold,
+                    0,
+                    600))
+            {
+                this.configuration.LostOneRemainingTimeThresholdSeconds = lostOneThreshold;
+            }
+        }
+
+        DrawSectionTitle("死亡恢复");
+        bool autoRaise = this.configuration.AutoAcceptRaise;
+        if (DrawSettingCheckbox(
+                "自动接受复活",
+                "advanced-auto-raise",
+                "检测到其他玩家发起的复活时自动接受，减少死亡后长时间等待。",
+                ref autoRaise))
+            this.configuration.AutoAcceptRaise = autoRaise;
+        bool autoReturn = this.configuration.AutoReturnAfterDeathTimeout;
+        if (DrawSettingCheckbox(
+                "超时返回复活点",
+                "advanced-auto-return",
+                "等待复活超过下方时间后自动返回最近的复活点，并继续死亡恢复流程；关闭后会一直等待复活或手动操作。",
+                ref autoReturn))
+            this.configuration.AutoReturnAfterDeathTimeout = autoReturn;
+        if (this.configuration.AutoReturnAfterDeathTimeout)
+        {
+            int deathWait = this.configuration.DeathRaiseWaitSeconds;
+            if (DrawSettingSliderInt(
+                    "复活等待",
+                    "advanced-death-wait",
+                    "死亡后等待其他玩家复活的时间；计时结束且仍未复活时执行自动返回复活点。",
+                    ref deathWait,
+                    0,
+                    120))
+                this.configuration.DeathRaiseWaitSeconds = deathWait;
+        }
+        else
+        {
+            ImGui.TextDisabled("自动返回已关闭：死亡后会一直等待其他玩家复活或手动操作。");
+        }
+        int deathCooldown = this.configuration.DeathFateCooldownSeconds;
+        if (DrawSettingSliderInt(
+                "死亡 FATE 冷却",
+                "advanced-death-cooldown",
+                "角色在某个 FATE 中死亡后，暂时降低再次选择该 FATE 的优先级，避免反复进入同一失败目标。",
+                ref deathCooldown,
+                30,
+                3600))
+            this.configuration.DeathFateCooldownSeconds = deathCooldown;
+
+        DrawSectionTitle("导航与异常恢复");
+        int stuck = this.configuration.NavigationStuckSeconds;
+        if (DrawSettingSliderInt(
+                "导航卡住判定",
+                "advanced-navigation-stuck",
+                "角色持续没有有效位置变化时，等待多久才认为导航可能卡住并进入恢复流程。",
+                ref stuck,
+                4,
+                60))
+            this.configuration.NavigationStuckSeconds = stuck;
+        int recovery = this.configuration.MaxRecoveryAttempts;
+        if (DrawSettingSliderInt(
+                "最大恢复次数",
+                "advanced-max-recovery",
+                "导航或自动化异常时允许连续尝试恢复的次数；设为 0 表示不进行额外重试。",
+                ref recovery,
+                0,
+                20))
+            this.configuration.MaxRecoveryAttempts = recovery;
+        int combatEscapeTimeout = this.configuration.CombatEscapeTimeoutSeconds;
+        if (DrawSettingSliderInt(
+                "脱战超时",
+                "advanced-combat-escape-timeout",
+                "战斗状态中没有可见目标时，最多持续跑离多久；超时后可能触发副本进退来重置异常仇恨。",
+                ref combatEscapeTimeout,
+                5,
+                120))
+            this.configuration.CombatEscapeTimeoutSeconds = combatEscapeTimeout;
+        float combatEscapeDistance = this.configuration.CombatEscapeDistance;
+        if (DrawSettingSliderFloat(
+                "脱战距离",
+                "advanced-combat-escape-distance",
+                "战斗状态中没有目标时，先尝试离开当前位置多远以摆脱残留仇恨；距离越大，跑离范围越远。",
+                ref combatEscapeDistance,
+                30f,
+                200f,
+                "%.0f yalms"))
+            this.configuration.CombatEscapeDistance = combatEscapeDistance;
+
+        DrawSectionTitle("音效");
         bool soundAlerts = this.configuration.EnableSoundAlerts;
         if (DrawSettingCheckbox(
-                "启用游戏内置音效提醒",
+                "启用提醒",
                 "advanced-sound-alerts",
                 "启用后，在指定 FATE 出现、FATE 完成、角色死亡或普通 FATE 跳过导航时播放下方选择的游戏内置音效。",
                 ref soundAlerts))
             this.configuration.EnableSoundAlerts = soundAlerts;
         uint targetAppearedSound = this.configuration.SoundAlertTargetAppearedEffectId;
         this.DrawSoundSelector(
-            "指定 FATE 出现",
+            "目标出现",
             "advanced-sound-target",
             "指定 FATE 出现在当前地图且可以前往时播放的音效。",
             ref targetAppearedSound);
@@ -1046,172 +1273,21 @@ public sealed class AutoFatreWindow : IDisposable
         this.configuration.SoundAlertDeathEffectId = deathSound;
         uint navigationSound = this.configuration.SoundAlertNavigationSkippedEffectId;
         this.DrawSoundSelector(
-            "普通 FATE 导航跳过",
+            "导航跳过",
             "advanced-sound-navigation",
             "普通 FATE 因距离、状态或其他条件被跳过，没有开始前往时播放的音效。",
             ref navigationSound);
         this.configuration.SoundAlertNavigationSkippedEffectId = navigationSound;
         int soundCooldown = this.configuration.SoundAlertCooldownSeconds;
         if (DrawSettingSliderInt(
-                "音效提醒冷却（秒）",
+                "提醒冷却",
                 "advanced-sound-cooldown",
-                "同一种提醒两次播放之间的最短间隔；设为 0 表示不额外限制播放频率。",
+                "同一种提醒两次播放之间的最短间隔；单位为秒，设为 0 表示不额外限制播放频率。",
                 ref soundCooldown,
                 0,
                 60))
             this.configuration.SoundAlertCooldownSeconds = soundCooldown;
         ImGui.TextDisabled("每项可选择“无音效”或游戏内置 <se.1> 至 <se.16>。");
-
-        this.DrawFateBlacklist();
-
-        DrawSectionTitle("前往 FATE 与拉怪");
-        bool fly = this.configuration.FlyToFates;
-        if (DrawSettingCheckbox(
-                "上坐骑并飞行前往 FATE",
-                "advanced-fly-to-fates",
-                "启用后，脱战时优先骑乘并飞行前往目标 FATE；接近 FATE 后会落地、下坐骑并进行等级同步。",
-                ref fly))
-            this.configuration.FlyToFates = fly;
-        int nextFateDelay = this.configuration.NextFateDelaySeconds;
-        if (DrawSettingSliderInt(
-                "前往下一个 FATE 前延迟（秒）",
-                "advanced-next-fate-delay",
-                "选择下一个 FATE 后、开始导航前等待多久；0 表示不延迟，1 表示固定延迟 1 秒，2 以上表示在 2 秒到当前值之间随机延迟。",
-                ref nextFateDelay,
-                0,
-                60))
-            this.configuration.NextFateDelaySeconds = nextFateDelay;
-        int aggro = this.configuration.MaxAggroCount;
-        if (DrawSettingSliderInt(
-                "主动拉怪上限",
-                "advanced-max-aggro",
-                "普通怪物类 FATE 中，主动吸引并保持仇恨的目标数量上限；BOSS 类 FATE 不使用此设置。",
-                ref aggro,
-                1,
-                4))
-            this.configuration.MaxAggroCount = aggro;
-        PullRefillPolicy refillPolicy = this.configuration.PullRefillPolicy;
-        this.DrawEnumCombo(
-            "补充拉怪时机",
-            "advanced-pull-refill",
-            "决定当前一批目标减少后何时再次主动拉怪；可选择剩余目标较少时补充，或整批清空后再拉。",
-            ref refillPolicy,
-            PullRefillPolicyLabel);
-        this.configuration.PullRefillPolicy = refillPolicy;
-        ImGui.TextDisabled(refillPolicy == PullRefillPolicy.RefillAtHalf
-            ? $"当前战斗目标不多于 {this.configuration.MaxAggroCount / 2} 只时补充至上限。"
-            : "本批目标全部死亡后才开始下一批。");
-        float approach = this.configuration.PullApproachDistance;
-        if (DrawSettingSliderFloat(
-                "拉怪接近距离",
-                "advanced-pull-approach",
-                "主动拉怪时接近目标到多少 yalms 后停止移动并等待建立仇恨；数值越小越接近目标。",
-                ref approach,
-                1f,
-                20f,
-                "%.1f yalms"))
-            this.configuration.PullApproachDistance = approach;
-        int aggroTimeout = this.configuration.AggroConfirmationTimeoutSeconds;
-        if (DrawSettingSliderInt(
-                "近距离仇恨确认超时（秒）",
-                "advanced-aggro-timeout",
-                "到达拉怪接近距离后，等待目标确认正在攻击玩家的最长时间；超时后会尝试处理或跳过目标。",
-                ref aggroTimeout,
-                2,
-                60))
-            this.configuration.AggroConfirmationTimeoutSeconds = aggroTimeout;
-        int targetCooldown = this.configuration.SkippedTargetCooldownSeconds;
-        if (DrawSettingSliderInt(
-                "目标跳过冷却（秒）",
-                "advanced-target-cooldown",
-                "某个目标暂时无法处理而被跳过后，在这段时间内不会立即重复选择它。",
-                ref targetCooldown,
-                5,
-                300))
-            this.configuration.SkippedTargetCooldownSeconds = targetCooldown;
-
-        DrawSectionTitle("死亡恢复");
-        bool autoRaise = this.configuration.AutoAcceptRaise;
-        if (DrawSettingCheckbox(
-                "自动接受其他玩家的复活",
-                "advanced-auto-raise",
-                "检测到其他玩家发起的复活时自动接受，减少死亡后长时间等待。",
-                ref autoRaise))
-            this.configuration.AutoAcceptRaise = autoRaise;
-        bool autoReturn = this.configuration.AutoReturnAfterDeathTimeout;
-        if (DrawSettingCheckbox(
-                "等待超时后自动返回复活点",
-                "advanced-auto-return",
-                "等待复活超过下方时间后自动返回最近的复活点，并继续死亡恢复流程；关闭后会一直等待复活或手动操作。",
-                ref autoReturn))
-            this.configuration.AutoReturnAfterDeathTimeout = autoReturn;
-        if (this.configuration.AutoReturnAfterDeathTimeout)
-        {
-            int deathWait = this.configuration.DeathRaiseWaitSeconds;
-            if (DrawSettingSliderInt(
-                    "等待复活时间（秒）",
-                    "advanced-death-wait",
-                    "死亡后等待其他玩家复活的时间；计时结束且仍未复活时执行自动返回复活点。",
-                    ref deathWait,
-                    0,
-                    120))
-                this.configuration.DeathRaiseWaitSeconds = deathWait;
-        }
-        else
-        {
-            ImGui.TextDisabled("自动返回已关闭：死亡后会一直等待其他玩家复活或手动操作。");
-        }
-        int deathCooldown = this.configuration.DeathFateCooldownSeconds;
-        if (DrawSettingSliderInt(
-                "死亡后 FATE 冷却（秒）",
-                "advanced-death-cooldown",
-                "角色在某个 FATE 中死亡后，暂时降低再次选择该 FATE 的优先级，避免反复进入同一失败目标。",
-                ref deathCooldown,
-                30,
-                3600))
-            this.configuration.DeathFateCooldownSeconds = deathCooldown;
-
-        DrawSectionTitle("导航与异常恢复");
-        int stuck = this.configuration.NavigationStuckSeconds;
-        if (DrawSettingSliderInt(
-                "导航无进展判定（秒）",
-                "advanced-navigation-stuck",
-                "角色持续没有有效位置变化时，等待多久才认为导航可能卡住并进入恢复流程。",
-                ref stuck,
-                4,
-                60))
-            this.configuration.NavigationStuckSeconds = stuck;
-        int recovery = this.configuration.MaxRecoveryAttempts;
-        if (DrawSettingSliderInt(
-                "最大恢复次数",
-                "advanced-max-recovery",
-                "导航或自动化异常时允许连续尝试恢复的次数；设为 0 表示不进行额外重试。",
-                ref recovery,
-                0,
-                20))
-            this.configuration.MaxRecoveryAttempts = recovery;
-        int combatEscapeTimeout = this.configuration.CombatEscapeTimeoutSeconds;
-        if (DrawSettingSliderInt(
-                "无目标战斗跑离超时（秒）",
-                "advanced-combat-escape-timeout",
-                "战斗状态中没有可见目标时，最多持续跑离多久；超时后可能触发副本进退来重置异常仇恨。",
-                ref combatEscapeTimeout,
-                5,
-                120))
-            this.configuration.CombatEscapeTimeoutSeconds = combatEscapeTimeout;
-        float combatEscapeDistance = this.configuration.CombatEscapeDistance;
-        if (DrawSettingSliderFloat(
-                "无目标战斗跑离距离",
-                "advanced-combat-escape-distance",
-                "战斗状态中没有目标时，先尝试离开当前位置多远以摆脱残留仇恨；距离越大，跑离范围越远。",
-                ref combatEscapeDistance,
-                30f,
-                200f,
-                "%.0f yalms"))
-            this.configuration.CombatEscapeDistance = combatEscapeDistance;
-        ImGui.TextWrapped("战斗中离开 FATE 区域会自动返回中心并重新同步。战后没有可见仇恨目标但仍处于战斗时，会先向远处跑；超时仍未脱战且角色不在小队中，则以解除限制进入泰坦歼灭战并立即退出。该操作只接管 AutoFatre 自己建立的副本队列。");
-        ImGui.Spacing();
-        ImGui.TextWrapped("启用飞行后，AutoFatre 会在脱战后先上坐骑；进入 FATE 半径后停止 vnavmesh，并按住游戏原生下降输入直至落地，再下坐骑和同步等级。讨伐BOSS 类 FATE 每次选择最大生命值最高的可攻击目标；消灭普通怪物类 FATE 才应用主动拉取上限。攻击技能仍由外部战斗插件执行。");
     }
 
     private void DrawFateBlacklist()
@@ -1254,6 +1330,10 @@ public sealed class AutoFatreWindow : IDisposable
             new Vector2(0, 180f),
             true,
             ImGuiWindowFlags.AlwaysVerticalScrollbar);
+        bool blacklistHovered = ImGui.IsWindowHovered();
+        float blacklistWheel = ImGui.GetIO().MouseWheel;
+        float blacklistScroll = ImGui.GetScrollY();
+        float blacklistScrollMax = ImGui.GetScrollMaxY();
         if (this.configuration.FateBlacklist.Count == 0)
         {
             ImGui.TextDisabled("当前没有屏蔽的 FATE。");
@@ -1274,6 +1354,15 @@ public sealed class AutoFatreWindow : IDisposable
             }
         }
         ImGui.EndChild();
+        if (blacklistHovered
+            && blacklistScrollMax > 0f
+            && blacklistWheel != 0f
+            && ((blacklistWheel > 0f && blacklistScroll <= 0.5f)
+                || (blacklistWheel < 0f && blacklistScroll >= blacklistScrollMax - 0.5f)))
+        {
+            float scrollStep = ImGui.GetTextLineHeight() * 5f;
+            ImGui.SetScrollY(ImGui.GetScrollY() - blacklistWheel * scrollStep);
+        }
         ImGui.PopStyleColor(2);
 
         if (removeIndex >= 0)
@@ -1604,7 +1693,14 @@ public sealed class AutoFatreWindow : IDisposable
                     ? $"{fate.MapName ?? "地图未知"} | {fate.ClientName}"
                     : fate.ClientName;
                 string blacklistMark = this.configuration.FateBlacklist.Contains(fate.FateId) ? "✓ " : string.Empty;
-                if (ImGui.Selectable($"{blacklistMark}{optionName}{series}##fate-{fate.FateId}-{selectorKey}", selected))
+                string optionText = $"{blacklistMark}{optionName}{series}";
+                string optionMetadata = $"{fate.TypeName}{(fate.IsAutomationSupported ? string.Empty : " · 暂未支持")} · 编号 {fate.FateId}";
+                if (this.DrawWrappedFateOption(
+                        optionText,
+                        optionMetadata,
+                        $"fate-{fate.FateId}-{selectorKey}",
+                        selected,
+                        out bool optionHovered))
                 {
                     fateId = fate.FateId;
                     if (showRecent)
@@ -1612,9 +1708,7 @@ public sealed class AutoFatreWindow : IDisposable
                     if (closeOnSelect)
                         this.CompleteSelection(selectorKey);
                 }
-                ImGui.SameLine();
-                ImGui.TextDisabled($"{fate.TypeName}{(fate.IsAutomationSupported ? string.Empty : " · 暂未支持")} · 编号 {fate.FateId}");
-                if (ImGui.IsItemHovered())
+                if (optionHovered)
                 {
                     string trigger = fate.Enrichment?.Trigger is { } knownTrigger
                                      && !string.IsNullOrWhiteSpace(knownTrigger)
@@ -1622,8 +1716,6 @@ public sealed class AutoFatreWindow : IDisposable
                         : "未知信息";
                     ImGui.SetTooltip($"触发条件：{trigger}");
                 }
-                if (selected)
-                    ImGui.SetItemDefaultFocus();
                 if (++shown >= maxResults)
                 {
                     ImGui.TextDisabled($"仅显示前 {maxResults} 条结果，请继续缩小关键词范围。");
@@ -1662,16 +1754,19 @@ public sealed class AutoFatreWindow : IDisposable
                 ? $"{fate.MapName ?? "地图未知"} | {fate.ClientName}"
                 : fate.ClientName;
             string blacklistMark = this.configuration.FateBlacklist.Contains(fate.FateId) ? "✓ " : string.Empty;
-            if (ImGui.Selectable($"{blacklistMark}{optionName}{series}##recent-fate-{fate.FateId}-{selectorKey}", selected))
+            string optionText = $"{blacklistMark}{optionName}{series}";
+            string optionMetadata = $"{fate.TypeName} · 编号 {fate.FateId}";
+            if (this.DrawWrappedFateOption(
+                    optionText,
+                    optionMetadata,
+                    $"recent-fate-{fate.FateId}-{selectorKey}",
+                    selected,
+                    out _))
             {
                 fateId = fate.FateId;
                 this.RecordRecentFate(fate.FateId);
                 this.CompleteSelection(selectorKey);
             }
-            ImGui.SameLine();
-            ImGui.TextDisabled($"{fate.TypeName} · 编号 {fate.FateId}");
-            if (selected)
-                ImGui.SetItemDefaultFocus();
             shown++;
         }
 
@@ -1688,6 +1783,83 @@ public sealed class AutoFatreWindow : IDisposable
         if (this.configuration.RecentTargetFateIds.Count > 15)
             this.configuration.RecentTargetFateIds.RemoveRange(15, this.configuration.RecentTargetFateIds.Count - 15);
         this.pluginInterface.SavePluginConfig(this.configuration);
+    }
+
+    private bool DrawWrappedFateOption(
+        string text,
+        string metadata,
+        string key,
+        bool selected,
+        out bool hovered)
+    {
+        string wrapped = WrapSelectorText(text);
+        Vector2 stylePadding = ImGui.GetStyle().FramePadding;
+        float availableWidth = MathF.Max(180f, ImGui.GetContentRegionAvail().X - stylePadding.X * 2f);
+        bool inlineMetadata = !wrapped.Contains('\n')
+            && ImGui.CalcTextSize(wrapped).X + ImGui.GetStyle().ItemSpacing.X + ImGui.CalcTextSize(metadata).X <= availableWidth;
+        float textHeight = ImGui.CalcTextSize(wrapped).Y;
+        if (!inlineMetadata)
+            textHeight += ImGui.GetStyle().ItemSpacing.Y + ImGui.GetTextLineHeight();
+        float height = textHeight + stylePadding.Y * 2f;
+
+        Vector2 rowStart = ImGui.GetCursorScreenPos();
+        bool pressed = ImGui.Selectable($"##{key}", selected, ImGuiSelectableFlags.None, new Vector2(0f, height));
+        hovered = ImGui.IsItemHovered();
+        if (selected)
+            ImGui.SetItemDefaultFocus();
+        Vector2 rowEnd = ImGui.GetCursorScreenPos();
+
+        ImGui.SetCursorScreenPos(rowStart + new Vector2(stylePadding.X, stylePadding.Y));
+        ImGui.TextUnformatted(wrapped);
+        if (inlineMetadata)
+        {
+            ImGui.SameLine(0f, ImGui.GetStyle().ItemSpacing.X);
+            ImGui.TextDisabled(metadata);
+        }
+        else
+        {
+            ImGui.TextDisabled(metadata);
+        }
+        ImGui.SetCursorScreenPos(rowEnd);
+        return pressed;
+    }
+
+    private static string WrapSelectorText(string text)
+    {
+        float maximumWidth = MathF.Max(180f, ImGui.GetContentRegionAvail().X - 12f);
+        if (!text.Contains('\n') && ImGui.CalcTextSize(text).X <= maximumWidth)
+            return text;
+
+        var wrapped = new StringBuilder(text.Length + 16);
+        var line = new StringBuilder();
+        foreach (char character in text)
+        {
+            if (character == '\n')
+            {
+                AppendWrappedLine(wrapped, line);
+                line.Clear();
+                continue;
+            }
+
+            string candidate = line.ToString() + character;
+            if (line.Length > 0 && ImGui.CalcTextSize(candidate).X > maximumWidth)
+            {
+                AppendWrappedLine(wrapped, line);
+                line.Clear();
+            }
+
+            line.Append(character);
+        }
+
+        AppendWrappedLine(wrapped, line);
+        return wrapped.ToString();
+    }
+
+    private static void AppendWrappedLine(StringBuilder destination, StringBuilder line)
+    {
+        if (destination.Length > 0)
+            destination.Append('\n');
+        destination.Append(line);
     }
 
     private void DrawItemSelector(string label, string selectorKey, ref uint itemId, float maximumWidth = 420f)
@@ -2054,10 +2226,10 @@ public sealed class AutoFatreWindow : IDisposable
             this.controller.PreviewSoundAlert(value);
     }
 
-    private void SetSelectorWidth(float maximum = 420f)
+    private void SetSelectorWidth(float maximum = 520f)
     {
         float available = ImGui.GetContentRegionAvail().X;
-        float width = Math.Min(maximum, Math.Max(220f, available * 0.65f));
+        float width = Math.Min(maximum, Math.Max(220f, available * 0.8f));
         ImGui.SetNextItemWidth(width);
     }
 

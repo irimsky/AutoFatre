@@ -1,8 +1,8 @@
 {
-  "Author": "AutoFatre",
+  "Author": "irimsky",
   "Name": "AutoFatre",
-  "Punchline": "可恢复的全自动战斗型 FATE 流程",
-  "Description": "通过 Lifestream、vnavmesh、等级同步和目标队列自动执行战斗型 FATE。",
+  "Punchline": "自动传送、跑图并刷 FATE",
+  "Description": "自动传送、跑图、接战并完成战斗型 FATE，支持指定 FATE、地图预设、等级同步和死亡恢复；战斗技能需要另装职业循环插件。使用 /autofatre 或 /af 打开窗口。",
   "InternalName": "AutoFatre",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,

@@ -70,7 +70,7 @@ public sealed class MapPresetSequence
 
 public sealed class AutoFatreConfiguration : IPluginConfiguration
 {
-    public int Version { get; set; } = 17;
+    public int Version { get; set; } = 18;
     // Runtime-only switch. Persisting this value causes a plugin reload to resume automation
     // unexpectedly when the previous instance was still enabled during shutdown.
     [Newtonsoft.Json.JsonIgnore]
@@ -90,13 +90,16 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
     public int MaxRecoveryAttempts { get; set; } = 3;
     public int AggroConfirmationTimeoutSeconds { get; set; } = 8;
     public int SkippedTargetCooldownSeconds { get; set; } = 30;
+    public bool PrioritizeLostGirlAndLostOne { get; set; }
+    public int LostGirlRemainingTimeThresholdSeconds { get; set; } = 180;
+    public int LostOneRemainingTimeThresholdSeconds { get; set; } = 240;
     public bool AutoAcceptRaise { get; set; } = true;
     public bool AutoReturnAfterDeathTimeout { get; set; } = true;
     public int DeathRaiseWaitSeconds { get; set; } = 20;
     public int DeathFateCooldownSeconds { get; set; } = 300;
     public List<DeathRecord> DeathRecords { get; set; } = [];
     public List<FateFailureRecord> FateFailureRecords { get; set; } = [];
-    public bool AutoSummonChocoboCompanion { get; set; }
+    public bool AutoSummonChocoboCompanion { get; set; } = true;
     public bool ShowOverlayWindow { get; set; }
     /// <summary>
     /// Delay before starting travel to the next FATE. 0 means no delay, 1 means exactly one
@@ -107,13 +110,13 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
     public float PullApproachDistance { get; set; } = 3f;
     public int CombatEscapeTimeoutSeconds { get; set; } = 20;
     public float CombatEscapeDistance { get; set; } = 80f;
-    public bool EnableSoundAlerts { get; set; } = true;
+    public bool EnableSoundAlerts { get; set; }
     /// <summary>Legacy shared sound setting retained for migration.</summary>
-    public uint SoundAlertEffectId { get; set; } = 1;
-    public uint SoundAlertTargetAppearedEffectId { get; set; } = 1;
-    public uint SoundAlertFateCompletedEffectId { get; set; } = 1;
-    public uint SoundAlertDeathEffectId { get; set; } = 1;
-    public uint SoundAlertNavigationSkippedEffectId { get; set; } = 1;
+    public uint SoundAlertEffectId { get; set; }
+    public uint SoundAlertTargetAppearedEffectId { get; set; }
+    public uint SoundAlertFateCompletedEffectId { get; set; }
+    public uint SoundAlertDeathEffectId { get; set; }
+    public uint SoundAlertNavigationSkippedEffectId { get; set; }
     public int SoundAlertCooldownSeconds { get; set; } = 3;
     /// <summary>FATE ids which are ignored by automatic selection and target-FATE priority checks.</summary>
     public List<ushort> FateBlacklist { get; set; } = [];
@@ -217,11 +220,18 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
         if (previousVersion < 16)
             this.NextFateDelaySeconds = 3;
 
+        if (previousVersion < 18)
+        {
+            this.PrioritizeLostGirlAndLostOne = false;
+            this.LostGirlRemainingTimeThresholdSeconds = 180;
+            this.LostOneRemainingTimeThresholdSeconds = 240;
+        }
+
         if (this.PresetSequences.Count == 0)
             this.PresetSequences.Add(this.PresetSequence);
         this.ActivePresetSequenceIndex = Math.Clamp(this.ActivePresetSequenceIndex, 0, this.PresetSequences.Count - 1);
         this.PresetSequence = this.PresetSequences[this.ActivePresetSequenceIndex];
-        this.Version = 17;
+        this.Version = 18;
     }
 
     public void Normalize()
@@ -255,6 +265,8 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
         this.NavigationStuckSeconds = Math.Clamp(this.NavigationStuckSeconds, 4, 60);
         this.NextFateDelaySeconds = Math.Clamp(this.NextFateDelaySeconds, 0, 60);
         this.PullApproachDistance = Math.Clamp(this.PullApproachDistance, 1f, 20f);
+        this.LostGirlRemainingTimeThresholdSeconds = Math.Clamp(this.LostGirlRemainingTimeThresholdSeconds, 0, 600);
+        this.LostOneRemainingTimeThresholdSeconds = Math.Clamp(this.LostOneRemainingTimeThresholdSeconds, 0, 600);
         this.CombatEscapeTimeoutSeconds = Math.Clamp(this.CombatEscapeTimeoutSeconds, 5, 120);
         this.CombatEscapeDistance = Math.Clamp(this.CombatEscapeDistance, 30f, 200f);
         this.SoundAlertEffectId = Math.Clamp(this.SoundAlertEffectId, 0u, 16u);

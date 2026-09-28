@@ -1,17 +1,14 @@
 # AutoFatre
 
-本项目目前只在国服客户端上维护，欢迎支持本地化。
-
-This project is currently maintained only for the Chinese client. Contributions for localization are welcome.
-
 Repo install URL:
+
 ```text
 https://raw.githubusercontent.com/irimsky/DalamudPlugins/refs/heads/main/manifest.json
 ```
 
-AutoFatre 是一个面向《最终幻想 XIV》的 Dalamud 自动化插件，用于自动执行战斗型 FATE 流程：选择目标、跨地图传送、地面或飞行导航、触发 FATE、等级同步、战斗目标管理、FATE 结算和异常恢复。
+AutoFatre 是一个面向《最终幻想 XIV》的 Dalamud 自动化插件，用于自动执行战斗型 FATE 流程。项目目前主要维护国服客户端，也欢迎其他地区的本地化贡献。
 
-插件负责流程控制、移动和目标管理，不负责施放战斗技能。请同时运行能够处理当前目标的战斗或职业循环插件。
+插件负责流程控制、移动、传送和目标管理，不负责施放职业技能。请同时运行能够处理当前目标的战斗或职业循环插件。
 
 ## 功能
 
@@ -80,39 +77,29 @@ AutoFatre 是一个面向《最终幻想 XIV》的 Dalamud 自动化插件，用
 | 消灭普通怪物 | 按主动拉怪上限分批处理目标，战斗技能由外部战斗插件执行。 |
 | 讨伐 BOSS | 持续优先选择当前 FATE 中生命值最高的可攻击目标。 |
 | 收集物品 | 导航到收集对象，取得物品后前往交付目标；受到攻击时先处理战斗目标。 |
-| 防御 | 以 FATE 中心作为安全范围，持续扫描受到攻击的防御目标；优先处理正在攻击这些友方目标的敌人，其余时间按普通 FATE 规则接战范围内的敌人，不会跟随防御目标离开区域。 |
-| 护送 | 追踪护送目标的位置；优先处理正在攻击护送目标的敌人。没有可攻击目标时，保持在护送目标附近，距离超过约 10 yalms 开始追踪。 |
+| 防御 | 以 FATE 中心作为安全范围，优先处理正在攻击防御目标的敌人。 |
+| 护送 | 追踪护送目标并优先处理正在攻击护送目标的敌人；没有可攻击目标时保持在目标附近。 |
 
 FATE 完成后，插件会先清理仍以本地玩家为目标的战斗 NPC，脱战后再前往下一个目标。
 
 ## 传送、导航与恢复
 
-- 跨地图时，插件会从角色已解锁的入口中选择默认目标，并交给 Lifestream 执行传送。
-- 目标地图没有合适的直达入口时，会尝试通过都市传送网中转。
-- 启用飞行后，插件会在满足条件时上坐骑并飞行导航；接近 FATE 后会停止导航、确认落地，再下坐骑并进行等级同步。
-- 禁飞区会强制使用地面导航；离开禁飞区后，只有满足稳定离开条件才会恢复飞行。
-- 导航无有效位移、依赖暂时不可用或传送超时等问题会进入恢复流程；多次恢复失败后会暂时跳过当前目标。
-- 若战斗状态残留但没有可见目标，插件会先跑离并等待脱战，再继续后续流程。
-- 角色死亡后，可以自动接受其他玩家复活；启用自动返回时，等待时间结束后会返回复活点并重新验证任务。
+- 跨地图时，从角色已解锁的入口中选择目标，并交给 Lifestream 执行传送。
+- 目标地图没有合适的直达入口时，尝试通过都市传送网中转。
+- 启用飞行后，在满足条件时上坐骑并飞行导航；接近 FATE 后确认落地，再下坐骑并进行等级同步。
+- 禁飞区使用地面导航；离开禁飞区后，在条件稳定时恢复飞行。
+- 导航、传送或依赖暂时不可用时进入恢复流程；多次恢复失败后暂时跳过当前目标。
+- 若战斗状态残留但没有可见目标，先跑离并等待脱战，再继续后续流程。
+- 角色死亡后，可以自动接受其他玩家复活；启用自动返回时，等待时间结束后返回复活点并重新验证任务。
 
 ## 注意事项
 
 - 这是一个会自动移动、传送、交互和参与战斗的插件。首次使用或修改配置后，请先观察完整流程。
 - 请确保角色拥有目标地图的传送权限、坐骑和飞行权限，以及足够的传送和伙伴相关资源。
-- AutoFatre 不替代战斗相关插件。没有可用的目标/战斗行为插件或职业循环插件时，角色可能无法建立仇恨或完成 FATE。
+- 没有可用的目标/战斗行为插件或职业循环插件时，角色可能无法建立仇恨或完成 FATE。
 - FATE 支持范围取决于当前客户端数据和插件实现；不支持的类型会显示排除原因并跳过。
-- 游戏更新可能改变 Dalamud、IPC、对象识别或 UI 行为。
-
-## 发布
-
-- 本地构建会自动探测常见的 Dalamud 开发运行时目录；也可以按优先级使用命令行 `-DalamudLibPath`、`AUTOFATRE_DALAMUD_LIB_PATH`、`DALAMUD_LIB_PATH` 或 `DALAMUD_HOME` 指定包含 `Dalamud.dll` 的目录。推荐通用环境变量：`$env:DALAMUD_LIB_PATH = "C:\你的Dalamud开发目录"`。
-- 本地发布前检查：`powershell -File .\release.ps1 -Version 0.2.0 -Restore`。脚本只检查版本、Release 构建和插件包是否生成，不会修改或推送任何仓库；网络不可用时可增加 `-SkipRemoteTagCheck`。需要在 main 且工作区干净时，再增加 `-RequireMainBranch -RequireCleanWorkspace`。
-- 将已提交版本创建为三段或四段版本号 tag（例如 `v0.2.0` 或 `0.2.0.0`）后，`.github/workflows/release.yml` 会在干净环境构建、运行单元测试并创建 GitHub Release。也可以通过 `workflow_dispatch` 重新处理一个已有 tag，并选择国服或国际服 Dalamud runtime。
-- Release 默认只附带用户安装所需的 `latest.zip`。checksum、发布清单和自定义 release notes 可由项目自行生成，不是插件安装器的强制要求。
-- Manifest PR 是可选的维护动作。手动运行 workflow 时选择 `manifest_update=pr` 才会访问 `irimsky/DalamudPlugins`，并需要 Secrets 中的 `DALAMUD_MANIFEST_TOKEN`；普通 tag 发布不需要这个 Token。仓库变量 `AUTOFATRE_MANIFEST_REPOSITORY` 可覆盖这个默认仓库。
+- 游戏更新可能改变 Dalamud、依赖插件或游戏界面行为。
 
 ## 许可证
 
 [MIT License](LICENSE)
-
-CI workflow test.

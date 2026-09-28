@@ -306,7 +306,7 @@ public sealed class FateTargetSelector
 
     /// <summary>
     /// Finds a high-priority destroy target. Verified FateObjectiveIdentityCatalog entries use
-    /// exact BaseId + NameId matching; FATEs without a verified identity fall back to the
+    /// verified BaseId/NameId matching; FATEs without a verified identity fall back to the
     /// configured client/Wiki name and documented aliases. Arbitrary fuzzy matching is not used.
     /// </summary>
     public IReadOnlyList<IBattleNpc> FindNamedPriorityTargets(
@@ -321,9 +321,7 @@ public sealed class FateTargetSelector
                 .Where(target => target.IsValid() && !target.IsDead && target.IsTargetable)
                 .Where(target => BelongsToFate(target, fateId))
                 .Where(target => !IsFriendly(target))
-                .Where(target => identities.Any(identity =>
-                    target.BaseId == identity.BaseId
-                    || target.NameId == identity.NameId))
+                .Where(target => identities.Any(identity => identity.Matches(target.BaseId, target.NameId)))
                 .OrderBy(target => Vector3.DistanceSquared(playerPosition, target.Position))
                 .ToArray();
             return identityMatches;
