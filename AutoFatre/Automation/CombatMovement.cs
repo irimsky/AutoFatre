@@ -33,6 +33,7 @@ public sealed class CombatMovement(AutoFatreConfiguration configuration)
     private DateTime escapeNoTargetSince = DateTime.MinValue;
     private DateTime escapeStartedAt = DateTime.MinValue;
 
+    public ulong? SelectedTargetId => this.selectingTargetId;
     public Vector3? AreaReturnWaypoint { get; private set; }
     public Vector3? AreaReturnDestination { get; private set; }
     public Vector3? EscapeDestination { get; private set; }

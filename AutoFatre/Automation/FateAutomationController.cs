@@ -18,7 +18,7 @@ using Lumina.Excel.Sheets;
 namespace AutoFatre;
 
 /// <summary>A framework-thread-only, recoverable orchestration state machine.</summary>
-public sealed unsafe class FateAutomationController : IDisposable
+public sealed unsafe partial class FateAutomationController : IDisposable
 {
     private static readonly TimeSpan CombatCleanupTimeout = TimeSpan.FromSeconds(30);
     // Preparing FATEs can remain visible for minutes before their opener NPC spawns.
@@ -439,7 +439,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     public string CurrentMinionName => this.companion.CurrentMinionName;
     public string CurrentMainHandName => this.companion.CurrentMainHandName;
     public bool AutoSummonChocoboCompanion => this.configuration.AutoSummonChocoboCompanion;
-    public AutomationMode CurrentMode => this.configuration.Mode;
+    public AutomationMode CurrentMode => this.EffectiveMode;
     public ushort? ConfiguredTargetFateId => this.configuration.TargetFateIds.FirstOrDefault() is { } first && first != 0
         ? first
         : null;
@@ -447,7 +447,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         .Where(id => id != 0)
         .ToArray();
     public uint ConfiguredSingleMapTerritoryId => this.configuration.SingleMapTerritoryId;
-    public int ConfiguredTargetFateCompleted => this.configuration.Mode == AutomationMode.TargetFate
+    public int ConfiguredTargetFateCompleted => this.EffectiveMode == AutomationMode.TargetFate
         && this.configuration.TargetFateIds.Count > 0
         ? this.configuration.TargetFateIds
             .Where(id => id != 0)
@@ -455,7 +455,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             .Distinct()
             .Sum(fateId => this.presetTargetFateCounts.GetValueOrDefault(fateId))
         : 0;
-    public int ConfiguredTargetFateTotal => this.configuration.Mode == AutomationMode.TargetFate
+    public int ConfiguredTargetFateTotal => this.EffectiveMode == AutomationMode.TargetFate
         ? this.configuration.TargetFateIds
             .Where(id => id != 0)
             .SelectMany(this.ExpandFateSelection)
@@ -470,7 +470,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     public int GetPresetStopConditionProgress(int mapIndex, StopCondition stop)
     {
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
-        if (this.configuration.Mode != AutomationMode.PresetSequence
+        if (this.EffectiveMode != AutomationMode.PresetSequence
             || mapIndex < 0
             || mapIndex >= maps.Count)
             return 0;
@@ -486,6 +486,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             StopConditionKind.FateCount => this.presetCompletedFates,
             StopConditionKind.ItemCount => stop.ItemId == 0 ? 0 : this.inventoryCounter.Count(stop.ItemId),
             StopConditionKind.TargetFate => this.ExpandFateSelection(stop.TargetFateId)
+                .Where(fateId => this.itemFarmMaps is null || fateId == stop.TargetFateId)
                 .Sum(fateId => this.presetTargetFateCounts.GetValueOrDefault(fateId)),
             StopConditionKind.NoFates => this.noFateStopTimer.ElapsedSeconds,
             _ => 0,
@@ -494,6 +495,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     public void NavigateToFateForUi(ushort fateId)
     {
+        if (this.itemFarmMaps is not null) this.Stop("用户切换为仅导航");
         if (this.fates.Find(fateId) is not { } fate)
             return;
 
@@ -512,7 +514,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     /// <summary>Starts an in-memory one-shot FATE objective for an external automation plugin.</summary>
     public bool StartSingleFate(ushort fateId, int requiredCount)
     {
-        if (fateId == 0 || requiredCount <= 0 || this.state != AutomationState.Stopped || this.temporaryTargetActive)
+        if (fateId == 0 || requiredCount <= 0 || this.state != AutomationState.Stopped || this.temporaryTargetActive || this.itemFarmMaps is not null)
             return false;
 
         _ = this.framework.RunOnFrameworkThread(() =>
@@ -522,6 +524,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void BeginTemporaryTargetFate(ushort fateId, int requiredCount, string reason, bool updateSingleFateResult)
     {
+        if (this.itemFarmMaps is not null) return;
         FateSnapshot? fate = this.fates.Find(fateId);
         bool hasMappedTerritory = this.staticFateTerritoryCatalog.TryGet(fateId, out FateTerritoryEntry? territoryEntry);
         if (fate is null && (!updateSingleFateResult || !hasMappedTerritory))
@@ -546,7 +549,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.temporaryTargetCompletedCount = 0;
             this.temporaryPreviousSingleMapTerritoryId = this.configuration.SingleMapTerritoryId;
             this.temporaryTerritoryOverridden = false;
-            this.temporaryPreviousMode = this.configuration.Mode;
+            this.temporaryPreviousMode = this.EffectiveMode;
             this.temporaryPreviousTargetFateId = this.configuration.TargetFateId;
             this.temporaryPreviousTargetFateIds = this.configuration.TargetFateIds.ToList();
             this.temporaryPreviousEnabled = this.configuration.Enabled;
@@ -584,13 +587,22 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     public void Start()
     {
+        if (this.itemFarmMaps is not null) this.Stop("用户重新启动自动化");
+        this.StartCore();
+    }
+
+    private void StartCore()
+    {
         this.fateAlertTracking.Reset();
         this.pendingSoundAlerts.Clear();
         this.soundAlertCooldowns.Clear();
         this.noFateStopTimer.Reset();
         this.nextSnapshotAt = DateTime.MinValue;
-        this.configuration.Migrate();
-        this.configuration.Normalize();
+        if (this.itemFarmMaps is null)
+        {
+            this.configuration.Migrate();
+            this.configuration.Normalize();
+        }
         this.ClearCurrentMapTerritory();
         this.configuration.Enabled = true;
         this.presetIndex = 0;
@@ -623,6 +635,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.pendingSoundAlerts.Clear();
         this.noFateStopTimer.Reset();
         bool restoreTemporary = this.temporaryTargetActive;
+        bool restoreItemFarm = this.itemFarmMaps is not null;
         this.configuration.Enabled = false;
         this.fateCompletions.Stop();
         this.PublishFateRewardContext();
@@ -632,6 +645,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.preparingGroundArrivalPending = false;
         this.CancelOwnedActions();
         this.ResetCurrentActivity();
+        if (restoreItemFarm) { this.itemFarmResult = "Stopped"; this.itemFarmMaps = null; this.itemFarmCleanupEnabled = false; }
         if (restoreTemporary)
         {
             this.singleFateResult = "Stopped";
@@ -914,12 +928,12 @@ public sealed unsafe class FateAutomationController : IDisposable
     {
         List<string> errors = [];
         IReadOnlyList<MapPreset> presetMaps = this.GetPresetMaps();
-        if (this.configuration.Mode == AutomationMode.PresetSequence && presetMaps.Count == 0)
+        if (this.EffectiveMode == AutomationMode.PresetSequence && presetMaps.Count == 0)
             errors.Add("自定义模式至少需要一个地图列表项。");
-        if (this.configuration.Mode == AutomationMode.TargetFate
+        if (this.EffectiveMode == AutomationMode.TargetFate
             && !this.configuration.TargetFateIds.Any(id => id != 0))
             errors.Add("指定 FATE 模式必须至少选择一个 FATE。");
-        else if (this.configuration.Mode == AutomationMode.TargetFate)
+        else if (this.EffectiveMode == AutomationMode.TargetFate)
         {
             foreach (ushort configuredTarget in this.configuration.TargetFateIds.Where(id => id != 0))
             {
@@ -934,7 +948,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             }
         }
 
-        IEnumerable<(uint Territory, string Label)> plans = this.configuration.Mode switch
+        IEnumerable<(uint Territory, string Label)> plans = this.EffectiveMode switch
         {
             AutomationMode.PresetSequence => presetMaps.Select((p, i) => (p.TerritoryId, $"地图 {i + 1}")),
             _ => [(this.configuration.SingleMapTerritoryId, "当前模式")],
@@ -958,7 +972,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             }
         }
 
-        if (this.configuration.Mode == AutomationMode.PresetSequence)
+        if (this.EffectiveMode == AutomationMode.PresetSequence)
         {
             for (int i = 0; i < presetMaps.Count; i++)
             {
@@ -1003,6 +1017,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (this.disposed)
             return;
 
+        if (this.itemFarmMaps is not null) this.Stop("插件卸载");
         this.disposed = true;
         this.fateRewards.Dispose();
         this.framework.Update -= this.OnFrameworkUpdate;
@@ -1155,6 +1170,10 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
 
         DateTime now = DateTime.UtcNow;
+        // Path.Stop cannot cancel a pending SimpleMove calculation. Drain late results even
+        // after ending the travel session, while paused, or during an action throttle.
+        this.travelSession.PumpCancellation();
+        this.ObserveCombatApproachCast(now);
         if (!this.CanObserveMap(now))
         {
             this.noFateStopTimer.Reset();
@@ -1238,6 +1257,9 @@ public sealed unsafe class FateAutomationController : IDisposable
                     waitForTerritory ? "角色已复活，等待返回区域稳定" : "角色已复活，重新规划");
             }
         }
+
+        if (this.WaitForItemFarmCleanup(now)) return;
+        if (this.CheckExternalProgress(now)) return;
 
         // Planning can run both at startup and immediately after advancing a preset map.  If a
         // stale combat flag is still present, clear it before teleporting, but return to plan
@@ -1350,6 +1372,11 @@ public sealed unsafe class FateAutomationController : IDisposable
             && this.pendingFateResult is null
             && this.state == AutomationState.ScanningFates)
         {
+            if (this.itemFarmMaps is not null && this.clientState.TerritoryType != this.GetCurrentPlan().TerritoryId)
+            {
+                this.Transition(AutomationState.ValidatingPlan, "临时请求当前地图与目标不符，先恢复目标地图再扫描FATE");
+                return;
+            }
             bool waitingForInventorySettlement = now < this.presetConditionRecheckUntil;
             if (this.CheckPresetStopCondition(logUnmet: waitingForInventorySettlement))
                 return;
@@ -1820,7 +1847,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private uint GetCurrentPresetEntryWeaponId()
     {
-        if (this.configuration.Mode != AutomationMode.PresetSequence)
+        if (this.EffectiveMode != AutomationMode.PresetSequence)
             return 0;
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
         return maps.Count == 0 ? 0 : maps[Math.Clamp(this.presetIndex, 0, maps.Count - 1)].EntryWeaponItemId;
@@ -1842,7 +1869,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         // Evaluate the current preset's stop conditions before resolving territory. This lets
         // startup skip already-satisfied map entries without teleporting there first.
-        if (this.configuration.Mode == AutomationMode.PresetSequence
+        if (this.EffectiveMode == AutomationMode.PresetSequence
             && this.mapReentryTerritory is null
             && this.activeFateId is null
             && this.pendingFateResult is null
@@ -1861,6 +1888,15 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             this.Transition(AutomationState.WaitingForTerritory, "等待传送区域加载稳定");
             return;
+        }
+        // An external map request must reach its own territory before consuming
+        // the startup shortcut. A FATE underfoot can belong to the previous map.
+        if (this.itemFarmMaps is not null && this.startupFateRangeSelectionPending
+            && this.clientState.TerritoryType != this.GetCurrentPlan().TerritoryId)
+        {
+            this.startupFateRangeSelectionPending = false;
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"临时请求先前往目标地图，不接当前脚下FATE：当前={this.clientState.TerritoryType}，目标={this.GetCurrentPlan().TerritoryId}");
         }
         if (this.startupFateRangeSelectionPending
             && this.SelectFateInCurrentRange(now) is { } startupFate)
@@ -2153,7 +2189,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private bool TrySummonEntryPet(DateTime now)
     {
-        if (this.configuration.Mode != AutomationMode.PresetSequence)
+        if (this.EffectiveMode != AutomationMode.PresetSequence)
             return false;
 
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
@@ -2726,7 +2762,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.configuration.Enabled = restoreEnabled && this.temporaryPreviousEnabled;
         this.AddDiagnostic(
             DiagnosticSeverity.Information,
-            $"临时目标已结束（{reason}），恢复模式={this.configuration.Mode}，目标 FATE={this.configuration.TargetFateId?.ToString() ?? "无"}，原运行状态={this.configuration.Enabled}");
+            $"临时目标已结束（{reason}），恢复模式={this.EffectiveMode}，目标 FATE={this.configuration.TargetFateId?.ToString() ?? "无"}，原运行状态={this.configuration.Enabled}");
         this.temporaryTargetActive = false;
         this.temporaryTargetFateId = 0;
         this.temporaryTargetRequiredCount = 1;
@@ -6214,6 +6250,32 @@ public sealed unsafe class FateAutomationController : IDisposable
         && CombatMovement.IsAttackCast(player.CastActionType, player.CastActionId,
             player.CastTargetObjectId, target.GameObjectId);
 
+    private void ObserveCombatApproachCast(DateTime now)
+    {
+        if (this.combatMovement.SelectedTargetId is not { } targetId
+            || this.objectTable.LocalPlayer is not { } player
+            || !(this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87] || player.IsCasting))
+            return;
+
+        // Short casts can start and be interrupted entirely between the combat handler's
+        // 250 ms updates. Observe them every frame, including after stopping the path so
+        // delayed cast metadata can still confirm the attack and finish this approach.
+        bool attackingCast = player.IsCasting
+            && CombatMovement.IsAttackCast(player.CastActionType, player.CastActionId,
+                player.CastTargetObjectId, targetId);
+        if (this.combatTargets.PullTargetId == targetId)
+            this.combatMovement.UpdatePullApproach(float.PositiveInfinity, casting: true, now, attackingCast);
+        else
+            this.combatMovement.UpdateTargetApproach(float.PositiveInfinity, casting: true, now, attackingCast);
+
+        if (this.travelSessionActive && this.travelPurpose == NavigationPurpose.PullTarget)
+        {
+            this.AddDiagnostic(DiagnosticSeverity.Debug,
+                $"战斗接近读条保护：目标={targetId:X}，Action={player.CastActionId}，攻击当前目标={attackingCast}，立即停止导航");
+            this.StopNavigationOperation();
+        }
+    }
+
     private void ApplyCombatApproach(IBattleNpc target, DateTime now, CombatMovement.ApproachAction action, bool pulling)
     {
         if (action == CombatMovement.ApproachAction.Approach)
@@ -6947,6 +7009,14 @@ public sealed unsafe class FateAutomationController : IDisposable
         bool hasItemStopCondition = this.GetCurrentPresetStopConditions()
             .Any(stop => stop.Kind == StopConditionKind.ItemCount);
         this.ResetCurrentActivity();
+        if (this.itemFarmMaps is not null && this.itemFarmCleanupEnabled)
+        {
+            this.ResetExternalProgress();
+            this.itemFarmResult = "WaitingForCleanup";
+            this.itemFarmCleanupDeadline = DateTime.UtcNow.AddSeconds(90);
+            this.Transition(AutomationState.ScanningFates, "FATE 已结束并脱战，等待调用方清理掉落物");
+            return;
+        }
         if (result.Succeeded && hasItemStopCondition)
         {
             this.presetConditionRecheckUntil = DateTime.UtcNow.AddSeconds(3);
@@ -6965,7 +7035,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     private IReadOnlyList<StopCondition> GetCurrentPresetStopConditions()
     {
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
-        if (this.configuration.Mode != AutomationMode.PresetSequence || maps.Count == 0)
+        if (this.EffectiveMode != AutomationMode.PresetSequence || maps.Count == 0)
             return Array.Empty<StopCondition>();
 
         return maps[Math.Clamp(this.presetIndex, 0, maps.Count - 1)].StopConditions;
@@ -6984,7 +7054,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     {
         bool canObserve = this.CanObserveMap(now);
         bool waitingOnMap = canObserve && this.fates.IsAvailable
-            && this.configuration.Mode == AutomationMode.PresetSequence
+            && this.EffectiveMode == AutomationMode.PresetSequence
             && this.GetCurrentPresetStopConditions().Any(stop => stop.Kind == StopConditionKind.NoFates)
             && this.clientState.TerritoryType == this.GetCurrentPlan().TerritoryId
             && this.activeFateId is null && this.pendingFateResult is null
@@ -7043,7 +7113,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     private bool CheckPresetStopCondition(ushort? justCompletedFateId = null, bool logUnmet = false)
     {
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
-        if (this.configuration.Mode != AutomationMode.PresetSequence || maps.Count == 0)
+        if (this.EffectiveMode != AutomationMode.PresetSequence || maps.Count == 0)
             return false;
 
         IReadOnlyList<StopCondition> conditions = this.GetCurrentPresetStopConditions();
@@ -7067,6 +7137,7 @@ public sealed unsafe class FateAutomationController : IDisposable
                     break;
                 case StopConditionKind.TargetFate:
                     actual = this.ExpandFateSelection(stop.TargetFateId)
+                        .Where(fateId => this.itemFarmMaps is null || fateId == stop.TargetFateId)
                         .Sum(fateId => this.presetTargetFateCounts.GetValueOrDefault(fateId));
                     satisfied = actual >= target;
                     break;
@@ -7134,6 +7205,13 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.Transition(
                 AutomationState.ValidatingPlan,
                 $"当前地图条件完成，进入{mapName}（Territory {next.TerritoryId}）");
+            return;
+        }
+
+        if (this.itemFarmMaps is not null)
+        {
+            this.Stop("临时物品目标已满足");
+            this.itemFarmResult = "Completed";
             return;
         }
 
@@ -7289,7 +7367,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private PlanContext GetCurrentPlan()
     {
-            if (this.configuration.Mode == AutomationMode.PresetSequence && this.GetPresetMaps().Count > 0)
+            if (this.EffectiveMode == AutomationMode.PresetSequence && this.GetPresetMaps().Count > 0)
             {
             int index = Math.Clamp(this.presetIndex, 0, this.GetPresetMaps().Count - 1);
             MapPreset preset = this.GetPresetMaps()[index];
@@ -7311,7 +7389,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         return new PlanContext(
             this.ResolvePlanTerritory(this.configuration.SingleMapTerritoryId, -1),
-            this.configuration.Mode == AutomationMode.TargetFate
+            this.EffectiveMode == AutomationMode.TargetFate
                 ? this.configuration.TargetFateIds
                     .Where(id => id != 0)
                     .SelectMany(this.ExpandFateSelection)
@@ -7334,11 +7412,11 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (!this.configuration.Enabled && this.state == AutomationState.Stopped)
             return this.clientState.TerritoryType;
 
-        if (this.currentMapTerritoryMode != this.configuration.Mode
+        if (this.currentMapTerritoryMode != this.EffectiveMode
             || this.currentMapTerritoryPresetIndex != presetIndex)
         {
             this.currentMapTerritory = null;
-            this.currentMapTerritoryMode = this.configuration.Mode;
+            this.currentMapTerritoryMode = this.EffectiveMode;
             this.currentMapTerritoryPresetIndex = presetIndex;
         }
 
@@ -7379,7 +7457,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         return members.Length == 0 ? [fateId] : members;
     }
 
-    private IReadOnlyList<MapPreset> GetPresetMaps() => this.configuration.GetActivePresetSequence().Maps;
+    private IReadOnlyList<MapPreset> GetPresetMaps() => this.itemFarmMaps ?? (IReadOnlyList<MapPreset>)this.configuration.GetActivePresetSequence().Maps;
 
     private void RefreshCandidateSnapshot()
     {
