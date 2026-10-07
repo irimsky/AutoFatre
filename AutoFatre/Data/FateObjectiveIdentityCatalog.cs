@@ -19,6 +19,12 @@ public static class FateObjectiveIdentityCatalog
     private static readonly IReadOnlyDictionary<ushort, FateObjectiveIdentity[]> DestroyObjectives =
         new Dictionary<ushort, FateObjectiveIdentity[]>
         {
+            // 阻止新殖民：违法砍伐的木材（2026-10-05 游戏内诊断确认）
+            [498] =
+            [
+                new FateObjectiveIdentity(BaseId: 1293, NameId: 1730),
+            ],
+
             // 冠恐鸟窝破坏命令：冠恐鸟窝
             [840] =
             [

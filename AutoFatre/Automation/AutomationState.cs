@@ -31,6 +31,7 @@ public enum AutomationState
     DeadReturning,
     Recovering,
     Faulted,
+    RepositioningForLanding,
 }
 
 public enum DiagnosticSeverity

@@ -15,4 +15,5 @@ public enum NavigationPurpose
     IdleFlight,
     CollectionObjective,
     CollectionTurnIn,
+    PreSyncPosition,
 }

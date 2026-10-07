@@ -137,9 +137,12 @@ public sealed unsafe class FateRepository(IFateTable fateTable, IClientState cli
     private IReadOnlyList<FateSnapshot> snapshot = [];
 
     public IReadOnlyList<FateSnapshot> Snapshot => this.snapshot;
+    public bool IsAvailable { get; private set; }
 
     public void Refresh()
     {
+        var manager = FFXIVClientStructs.FFXIV.Client.Game.Fate.FateManager.Instance();
+        this.IsAvailable = manager is not null && manager->FateDirector is not null;
         List<FateSnapshot> next = [];
         foreach (IFate fate in fateTable)
         {

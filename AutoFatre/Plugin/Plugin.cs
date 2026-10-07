@@ -17,9 +17,11 @@ public sealed class Plugin : IAsyncDalamudPlugin
     private readonly StaticFateTerritoryCatalog staticFateTerritoryCatalog;
     private readonly GameDataSelectionCatalog selectionCatalog;
     private readonly FateAutomationController controller;
+    private readonly AutoFatreIpcProvider ipcProvider;
     private readonly AutoFatreWindow window;
     private readonly WindowSystem windowSystem = new("AutoFatre");
     private readonly AutoFatreOverlayWindow overlayWindow;
+    private readonly AutoFatreSettingsWindow settingsWindow;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
@@ -88,6 +90,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
             lifestream,
             fateRepository,
             this.staticFateCatalog,
+            this.staticFateTerritoryCatalog,
             targetSelector,
             inventoryCounter,
             companion,
@@ -98,17 +101,25 @@ public sealed class Plugin : IAsyncDalamudPlugin
             soundAlerts,
             textAdvance,
             addonLifecycle,
-            gameGui);
+            gameGui,
+            gameInteropProvider);
+        this.ipcProvider = new AutoFatreIpcProvider(this.pluginInterface, framework, this.controller);
         this.window = new AutoFatreWindow(
             pluginInterface,
             this.configuration,
             this.controller,
             this.selectionCatalog,
             inventoryCounter,
-            this.SetOverlayWindowVisibility);
-        this.overlayWindow = new AutoFatreOverlayWindow(pluginInterface, this.configuration, this.window);
+            this.SetOverlayWindowVisibility,
+            this.OpenSettingsWindow);
+        this.settingsWindow = new AutoFatreSettingsWindow(pluginInterface, this.configuration, this.window.DrawSettingsPage);
+        this.overlayWindow = new AutoFatreOverlayWindow(pluginInterface, this.configuration, this.window, this.OpenSettingsWindow);
+        this.windowSystem.AddWindow(this.window);
         this.windowSystem.AddWindow(this.overlayWindow);
+        this.windowSystem.AddWindow(this.settingsWindow);
         this.pluginInterface.UiBuilder.Draw += this.windowSystem.Draw;
+        this.pluginInterface.UiBuilder.Draw += this.window.DrawAuxiliaryWindows;
+        this.pluginInterface.UiBuilder.OpenConfigUi += this.OpenSettingsWindow;
 
         this.commandManager.AddHandler("/autofatre", this.CreateCommandInfo());
         this.commandManager.AddHandler("/af", this.CreateCommandInfo());
@@ -224,8 +235,12 @@ public sealed class Plugin : IAsyncDalamudPlugin
         this.commandManager.RemoveHandler("/autofatre");
         this.commandManager.RemoveHandler("/af");
         this.pluginInterface.UiBuilder.Draw -= this.windowSystem.Draw;
+        this.pluginInterface.UiBuilder.Draw -= this.window.DrawAuxiliaryWindows;
+        this.pluginInterface.UiBuilder.OpenConfigUi -= this.OpenSettingsWindow;
         this.windowSystem.RemoveAllWindows();
+        this.settingsWindow.Dispose();
         this.window.Dispose();
+        this.ipcProvider.Dispose();
         this.controller.Dispose();
         this.pluginInterface.SavePluginConfig(this.configuration);
         return ValueTask.CompletedTask;
@@ -235,6 +250,8 @@ public sealed class Plugin : IAsyncDalamudPlugin
     {
         this.overlayWindow.IsOpen = visible;
     }
+
+    private void OpenSettingsWindow() => this.settingsWindow.Open();
 
     private void OnCommand(string _, string args)
     {
@@ -262,18 +279,21 @@ public sealed class Plugin : IAsyncDalamudPlugin
                 this.controller.RequestLogScan();
                 break;
             case "ui":
-            case "config":
                 this.window.Open();
                 break;
+            case "config":
+            case "settings":
+                this.OpenSettingsWindow();
+                break;
             default:
-                this.log.Warning("未知 AutoFatre 命令：{Command}；可用命令：start、stop、pause、retry、status、scan、ui", args.Trim());
+                this.log.Warning("未知 AutoFatre 命令：{Command}；可用命令：start、stop、pause、retry、status、scan、ui、config", args.Trim());
                 break;
         }
     }
 
     private CommandInfo CreateCommandInfo() => new(this.OnCommand)
     {
-        HelpMessage = "打开 AutoFatre UI；start|stop|pause|retry|status|scan|ui",
+        HelpMessage = "打开 AutoFatre UI；start|stop|pause|retry|status|scan|ui|config",
         ShowInHelp = true,
     };
 }
