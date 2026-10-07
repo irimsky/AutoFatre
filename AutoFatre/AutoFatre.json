@@ -3,7 +3,7 @@
   "Name": "AutoFatre",
   "Punchline": "自动传送、跑图并刷 FATE",
   "Description": "自动传送、跑图、接战并完成战斗型 FATE，支持指定 FATE、地图预设、等级同步和死亡恢复；战斗技能需要另装职业循环插件。使用 /autofatre 或 /af 打开窗口。",
-  "Changelog": "新增独立分类设置窗口、标题栏齿轮入口及更大字号。新增 FATE 圈内其他玩家提醒和可配置阈值的双色宝石提醒。预设支持 3～10 秒无 FATE 停止条件，取消条件后保留原数据。恢复迷失目标时间阈值并统一优先击杀逻辑。优化按职业拉怪上限、战斗回正、完成计数、死亡与导航恢复，修正部分 FATE 目标分类。新增地图矩形禁飞区和可选平面落地点，南萨纳兰落点为 (27.4, 20.9)。新增单次 FATE 任务 IPC。",
+  "Changelog": "修正 Boss 战前短读条导致战斗接近导航未及时停止的问题，并完善取消后的延迟寻路清理。修正 FATE 304 渡渡鸟窝的目标分类。新增供 AutoZodiac 使用的临时刷物品和指定 FATE IPC，支持逐场掉落清理等待及无进展恢复。",
   "InternalName": "AutoFatre",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,

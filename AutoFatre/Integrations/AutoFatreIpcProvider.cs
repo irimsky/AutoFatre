@@ -18,6 +18,12 @@ public sealed class AutoFatreIpcProvider : IDisposable
     private readonly ICallGateProvider<int> getCompletedCount;
     private readonly ICallGateProvider<int> getRequiredCount;
     private readonly ICallGateProvider<string> getResult;
+    private readonly ICallGateProvider<uint, uint, int, string> startItemFarm;
+    private readonly ICallGateProvider<ushort, int, string> startFateFarm;
+    private readonly ICallGateProvider<string, string> getItemFarmResult;
+    private readonly ICallGateProvider<string, bool> stopItemFarm;
+    private readonly ICallGateProvider<string, bool> enableItemFarmCleanup;
+    private readonly ICallGateProvider<string, bool> resumeItemFarmAfterCleanup;
     private readonly FateAutomationController controller;
     private readonly IFramework framework;
     private bool disposed;
@@ -37,6 +43,18 @@ public sealed class AutoFatreIpcProvider : IDisposable
         this.getCompletedCount = pluginInterface.GetIpcProvider<int>("AutoFatre.GetCompletedCount");
         this.getRequiredCount = pluginInterface.GetIpcProvider<int>("AutoFatre.GetRequiredCount");
         this.getResult = pluginInterface.GetIpcProvider<string>("AutoFatre.GetResult");
+        this.startItemFarm = pluginInterface.GetIpcProvider<uint, uint, int, string>("AutoFatre.StartItemFarm");
+        this.startFateFarm = pluginInterface.GetIpcProvider<ushort, int, string>("AutoFatre.StartFateFarm");
+        this.startFateFarm.RegisterFunc(controller.StartFateFarm);
+        this.getItemFarmResult = pluginInterface.GetIpcProvider<string, string>("AutoFatre.GetItemFarmResult");
+        this.stopItemFarm = pluginInterface.GetIpcProvider<string, bool>("AutoFatre.StopItemFarm");
+        this.enableItemFarmCleanup = pluginInterface.GetIpcProvider<string, bool>("AutoFatre.EnableItemFarmCleanup");
+        this.resumeItemFarmAfterCleanup = pluginInterface.GetIpcProvider<string, bool>("AutoFatre.ResumeItemFarmAfterCleanup");
+        this.enableItemFarmCleanup.RegisterFunc(controller.EnableItemFarmCleanup);
+        this.resumeItemFarmAfterCleanup.RegisterFunc(controller.ResumeItemFarmAfterCleanup);
+        this.startItemFarm.RegisterFunc(controller.StartItemFarm);
+        this.getItemFarmResult.RegisterFunc(controller.GetItemFarmResult);
+        this.stopItemFarm.RegisterFunc(controller.StopItemFarm);
 
         this.startSingleFate.RegisterFunc(controller.StartSingleFate);
         this.stop.RegisterAction(() =>
@@ -63,5 +81,11 @@ public sealed class AutoFatreIpcProvider : IDisposable
         this.getCompletedCount.UnregisterFunc();
         this.getRequiredCount.UnregisterFunc();
         this.getResult.UnregisterFunc();
+        this.startItemFarm.UnregisterFunc();
+        this.startFateFarm.UnregisterFunc();
+        this.getItemFarmResult.UnregisterFunc();
+        this.stopItemFarm.UnregisterFunc();
+        this.enableItemFarmCleanup.UnregisterFunc();
+        this.resumeItemFarmAfterCleanup.UnregisterFunc();
     }
 }

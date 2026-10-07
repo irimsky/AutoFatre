@@ -128,6 +128,20 @@ FATE 完成后，插件会先清理仍以本地玩家为目标的战斗 NPC，�
 - FATE 支持范围取决于当前客户端数据和插件实现；不支持的类型会显示排除原因并跳过。
 - 游戏更新可能改变 Dalamud、依赖插件或游戏界面行为。
 
+## 临时刷物品 IPC
+
+AutoZodiac魂晶阶段可通过`AutoFatre.StartItemFarm(uint territoryId, uint itemId, int absoluteBagTarget) -> string token`调用指定区域刷物品。目标是背包绝对数量；例如已有2个、需要新增1个时传入3。调用必须在Framework线程，AutoFatre已停止且无其他临时任务，拒绝返回空字符串。
+
+`AutoFatre.GetItemFarmResult(string token)`返回Running／Completed／Stopped／Failed／Unknown；原GetState／GetStatus／IsRunning提供运行状态。`AutoFatre.StopItemFarm(string token) -> bool`只取消匹配的临时请求，不停止其后用户启动的其他任务。调用方应在真实背包数量及停止状态确认后切换目标。
+
+临时目标复用单地图预设ItemCount的传送、刷图和结算逻辑，仅保留在内存，不修改用户模式、地图列表、停止策略或指定武器。目标满足后停止，主窗口和悬浮窗显示临时物品目标。暂停、手动停止和故障由调用方处理，旧单FATE接口保持兼容。
+
+调用方需要在每次FATE结束后清理掉落时，启动后调用`EnableItemFarmCleanup(token)->bool`。本次FATE完成或失败、实际脱战收尾后，结果为`WaitingForCleanup`，AutoFatre等待调用方。调用方完成清理后调用`ResumeItemFarmAfterCleanup(token)->bool`，恢复伙伴检查、停止条件检查及刷图。两接口仅接受Framework线程和原token，恢复只接受仍在等待的运行请求；用户暂停／停止／新运行不被旧通知恢复。等待期间保留死亡和重新接战恢复，回到ScanningFates且实际可操作后才接受恢复；90秒无人响应即停止失败。未启用此功能的调用方保持原行为；AutoFatre不负责丢弃物品。
+
+小黄书使用`AutoFatre.StartFateFarm(ushort fateId, int requiredCount)->string token`，共用上述结果、停止和清理接口。同步Framework线程、停止且无其他临时任务才能接受，地图由静态目录解析，目标计数仅精确指定FATE；链式前置不会算入目标数。临时MapPreset不覆盖用户配置，等待目标时沿用用户等待/刷其他FATE策略，成功或失败及顺路FATE均可交回清理。旧StartSingleFate保持兼容。
+
+token临时请求另有120秒实际进展监测：至少1码位移、FATE进度、当前目标HP下降、收集交付物或完成数变化都算进展；没有进展时取消所属操作并重新规划，战斗中先清场。连续恢复三次仍无效则停止失败，实际进展重置次数。扫描等待刷新、加载、死亡等待和准备NPC不触发该监测，准备NPC沿用5分钟预算。动态状态文案、目标切换和剩余倒计时不算执行进展。普通用户启动不启用此监测或清理屏障；导航等原超时保护保持。
+
 ## 许可证
 
 [MIT License](LICENSE)

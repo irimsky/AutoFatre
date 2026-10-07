@@ -144,7 +144,7 @@ public sealed class AutoFatreWindow : Window, IDisposable
             ImGui.Separator();
             ImGui.TextColored(new Vector4(0.35f, 0.8f, 1f, 1f), "模式");
             ImGui.SameLine(0f, 8f);
-            ImGui.TextColored(new Vector4(1f, 0.85f, 0.35f, 1f), ModeLabel(this.configuration.Mode));
+            ImGui.TextColored(new Vector4(1f, 0.85f, 0.35f, 1f), this.controller.IsItemFarmActive ? this.controller.TemporaryFarmLabel : ModeLabel(this.configuration.Mode));
             ImGui.Separator();
 
             DrawOverlayField("状态", this.controller.State.ToString(), new Vector4(0.35f, 0.85f, 1f, 1f));
@@ -162,7 +162,9 @@ public sealed class AutoFatreWindow : Window, IDisposable
                 string.IsNullOrWhiteSpace(this.controller.CurrentMinionName) ? "无" : this.controller.CurrentMinionName,
                 NeutralValueColor);
 
-            if (this.configuration.Mode == AutomationMode.PresetSequence)
+            if (this.controller.IsItemFarmActive)
+                DrawOverlayField("临时目标", this.controller.ItemFarmStatus, NeutralValueColor);
+            else if (this.configuration.Mode == AutomationMode.PresetSequence)
                 this.DrawOverlayPresetProgress();
             else if (this.configuration.Mode == AutomationMode.TargetFate)
             {
@@ -330,7 +332,9 @@ public sealed class AutoFatreWindow : Window, IDisposable
 
         DrawSectionTitle("当前任务");
         List<(string Label, string Value, Vector4 Color)> taskStatus = [];
-        if (this.configuration.Mode == AutomationMode.TargetFate)
+        if (this.controller.IsItemFarmActive)
+            taskStatus.Add((this.controller.TemporaryFarmLabel, this.controller.ItemFarmStatus, NeutralValueColor));
+        else if (this.configuration.Mode == AutomationMode.TargetFate)
         {
             IReadOnlyList<ushort> targetIds = this.controller.ConfiguredTargetFateIds;
             string target = targetIds.Count > 0
@@ -338,14 +342,14 @@ public sealed class AutoFatreWindow : Window, IDisposable
                 : "未选择";
             taskStatus.Add(("指定 FATE", target, NeutralValueColor));
         }
-        if (this.configuration.Mode == AutomationMode.PresetSequence)
+        if (!this.controller.IsItemFarmActive && this.configuration.Mode == AutomationMode.PresetSequence)
         {
             MapPresetSequence sequence = this.configuration.GetActivePresetSequence();
             taskStatus.Add(("当前预设", sequence.Name, NeutralValueColor));
             taskStatus.Add(("地图进度", $"{this.controller.PresetIndex + 1}/{Math.Max(1, sequence.Maps.Count)}", NeutralValueColor));
             taskStatus.Add(("本地图完成", $"{this.controller.PresetCompletedFates} 个 FATE", new Vector4(0.35f, 0.9f, 0.45f, 1f)));
         }
-        if (this.configuration.Mode == AutomationMode.SingleMapLoop)
+        if (!this.controller.IsItemFarmActive && this.configuration.Mode == AutomationMode.SingleMapLoop)
             taskStatus.Add(("单地图循环", this.selectionCatalog.GetTerritoryName(this.configuration.SingleMapTerritoryId), NeutralValueColor));
         DrawStatusGrid("CurrentTaskStatusGrid", taskStatus.ToArray());
 
