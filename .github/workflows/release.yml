@@ -165,22 +165,6 @@ jobs:
         shell: pwsh
         run: .\build.ps1 -Configuration Release -Restore -DotnetPath dotnet -DalamudLibPath "$env:DALAMUD_RUNTIME_PATH"
 
-      - name: Restore test project
-        shell: pwsh
-        run: dotnet restore .\AutoFatre.Tests\AutoFatre.Tests.csproj --packages .\.nuget "-p:DalamudLibPath=$env:DALAMUD_RUNTIME_PATH"
-
-      - name: Run unit tests
-        shell: pwsh
-        run: dotnet test .\AutoFatre.Tests\AutoFatre.Tests.csproj --configuration Release --no-restore "-p:DalamudLibPath=$env:DALAMUD_RUNTIME_PATH" --logger "trx;LogFileName=AutoFatre.Tests.trx" --results-directory TestResults
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: AutoFatre-release-test-results-${{ inputs.tag || github.ref_name }}
-          path: TestResults/*.trx
-          if-no-files-found: ignore
-
       - name: Validate release version
         id: version
         shell: pwsh

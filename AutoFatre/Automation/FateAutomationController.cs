@@ -20,7 +20,10 @@ namespace AutoFatre;
 /// <summary>A framework-thread-only, recoverable orchestration state machine.</summary>
 public sealed unsafe class FateAutomationController : IDisposable
 {
-    private static readonly TimeSpan CombatEscapeGracePeriod = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan CombatCleanupTimeout = TimeSpan.FromSeconds(30);
+    // Preparing FATEs can remain visible for minutes before their opener NPC spawns.
+    // Share the selection-to-opening budget across travel and NPC interaction.
+    private static readonly TimeSpan FatePreparationTimeout = TimeSpan.FromMinutes(5);
     // DailyRoutines-style collection is event driven: issue one interaction, then immediately
     // rescan on a short throttle instead of treating an animation/cast as a success signal.
     private static readonly TimeSpan CollectionInteractionRepeatDelay = TimeSpan.FromMilliseconds(400);
@@ -80,24 +83,6 @@ public sealed unsafe class FateAutomationController : IDisposable
         ManualTestResync,
     }
 
-    private enum PullApproachPhase
-    {
-        MovingToApproachRange,
-        MeleeAttackWindow,
-    }
-
-    private enum PullTargetKind
-    {
-        Normal,
-        ProtectionThreat,
-    }
-
-    private enum LostPriorityTargetKind
-    {
-        LostGirl,
-        LostOne,
-    }
-
     private enum AggroDutyResetPhase
     {
         None,
@@ -145,7 +130,10 @@ public sealed unsafe class FateAutomationController : IDisposable
     private readonly LifestreamIpc lifestream;
     private readonly FateRepository fates;
     private readonly StaticFateCatalog staticFateCatalog;
+    private readonly StaticFateTerritoryCatalog staticFateTerritoryCatalog;
     private readonly FateTargetSelector targetSelector;
+    private readonly CombatTargetSelection combatTargets;
+    private readonly CombatMovement combatMovement;
     private readonly InventoryCounter inventoryCounter;
     private readonly CompanionAdapter companion;
     private readonly System.Action persistConfiguration;
@@ -159,13 +147,18 @@ public sealed unsafe class FateAutomationController : IDisposable
     private readonly IReadOnlyDictionary<ushort, ClientFateDefinition> clientFateDefinitions;
     private readonly NavigationTravelSession travelSession;
     private readonly NoFlyZoneCatalog noFlyZones;
+    private readonly FateRewardListener fateRewards;
+    private readonly FateCompletionTracking fateCompletions = new();
+    private readonly NoFateStopTimer noFateStopTimer = new();
+    private readonly FateAlertTracking fateAlertTracking = new();
+    private readonly HashSet<string> pendingSoundAlerts = [];
+    private readonly Dictionary<string, DateTime> soundAlertCooldowns = [];
+    private FateRewardCaptureContext? fateRewardContext;
 
     private readonly Queue<DiagnosticEntry> diagnostics = new();
     private readonly Dictionary<ushort, DateTime> skippedFates = [];
-    private readonly Dictionary<ulong, DateTime> skippedTargets = [];
     private readonly HashSet<LoggedFateContext> loggedFateContexts = [];
     private readonly HashSet<LoggedTargetIdentity> loggedTargetIdentities = [];
-    private readonly HashSet<ulong> pullBatchTargets = [];
     private AutomationState state = AutomationState.Stopped;
     private ushort? activeFateId;
     private FateSnapshot? lastActiveFateSnapshot;
@@ -183,33 +176,19 @@ public sealed unsafe class FateAutomationController : IDisposable
     private int recoveryAttempts;
     private AutomationState recoveryResumeState = AutomationState.ValidatingPlan;
     private int levelSyncAttempts;
+    private Vector3? preSyncPosition;
+    private DateTime preSyncDiagnosticAt = DateTime.MinValue;
     private int aggroCount;
-    private ulong? pullTargetId;
-    private PullTargetKind pullTargetKind;
-    private ulong? killTargetId;
-    private ulong? lostPriorityTargetId;
-    private LostPriorityTargetKind? lostPriorityTargetKind;
-    private DateTime lostPriorityTargetMissingSince = DateTime.MinValue;
     private ulong? priorityDestroyTargetId;
-    private ulong? bossTargetId;
-    private ulong? cleanupTargetId;
     private PendingFateResult? pendingFateResult;
     private CleanupContinuation cleanupContinuation;
-    private DateTime pullAttemptStartedAt;
-    private DateTime pullPhaseStartedAt;
-    private DateTime pullCastProtectionUntil = DateTime.MinValue;
-    private PullApproachPhase pullApproachPhase;
     private DateTime pullBatchEmptySince = DateTime.MinValue;
-    private DateTime outsideFateAreaSince = DateTime.MinValue;
-    private DateTime cleanupNoTargetSince = DateTime.MinValue;
+    private AutomationState? returnAreaResumeState;
     private DateTime cleanupDiagnosticAt = DateTime.MinValue;
     private DateTime returnAreaDiagnosticAt = DateTime.MinValue;
     private DateTime outOfRangeTargetDiagnosticAt = DateTime.MinValue;
-    private DateTime cleanupEscapeStartedAt = DateTime.MinValue;
     private DateTime dutyResetStartedAt = DateTime.MinValue;
     private DateTime dutyResetLastActionAt = DateTime.MinValue;
-    private Vector3? cleanupEscapeDestination;
-    private Vector3? cleanupEscapeOrigin;
     private ushort? preemptSyncFateId;
     private uint dutyResetOriginTerritory;
     private AggroDutyResetPhase dutyResetPhase;
@@ -233,10 +212,6 @@ public sealed unsafe class FateAutomationController : IDisposable
     private bool startupFateRangeSelectionPending;
     private bool preparingGroundArrivalPending;
     private bool mapArrivalCheckPending;
-    private readonly DestroyObjectiveSession destroySession = new();
-    private ulong? selectingTargetId;
-    private DateTime targetSelectionFailedAt = DateTime.MinValue;
-    private bool targetSelectionMoving;
     private DateTime teleportStartedAt = DateTime.MinValue;
     private uint teleportCandidateTerritory;
     private readonly HashSet<(uint AetheryteId, byte SubIndex)> failedTeleportCandidates = [];
@@ -247,7 +222,6 @@ public sealed unsafe class FateAutomationController : IDisposable
     private DateTime deathStartedAt = DateTime.MinValue;
     private DateTime deathReturnAttemptStartedAt = DateTime.MinValue;
     private DateTime raiseAcceptedAt = DateTime.MinValue;
-    private DateTime soundAlertCooldownUntil = DateTime.MinValue;
     private CompanionCheckpointKind companionCheckpointKind;
     private AutomationState companionResumeState = AutomationState.ScanningFates;
     private DateTime companionCheckpointStartedAt = DateTime.MinValue;
@@ -255,6 +229,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     private bool companionEntryPetHandled;
     private bool companionChocoboHandled;
     private DateTime companionActionDeadline = DateTime.MinValue;
+    private bool companionChocoboActionPending;
     private bool entryWeaponHandled;
     private DateTime nextIdleMountAttemptAt = DateTime.MinValue;
     private bool idleFlightRaised;
@@ -265,9 +240,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     private DateTime presetConditionRecheckUntil = DateTime.MinValue;
     private DateTime fateParticipationSince = DateTime.MinValue;
     private bool fallbackLandingForParticipation;
-    private DateTime completedProgressObservedAt = DateTime.MinValue;
     private bool activeFateParticipationObserved;
-    private DateTime terminalFateObservedAt = DateTime.MinValue;
     private readonly HashSet<ulong> completedCollectionObjects = [];
     private ushort? collectionFateId;
     private uint collectionItemId;
@@ -294,16 +267,13 @@ public sealed unsafe class FateAutomationController : IDisposable
     private DateTime collectionNextInteractionAt = DateTime.MinValue;
     private IReadOnlyDictionary<uint, int> collectionInventoryBefore = new Dictionary<uint, int>();
     private IReadOnlyDictionary<uint, int> collectionObservedInventory = new Dictionary<uint, int>();
-    private FateState? terminalFateState;
-    private static readonly TimeSpan TerminalFateConfirmationWindow = TimeSpan.FromSeconds(1);
-    private const float BossNonFateCleanupRadius = 12f;
-    private const float FateCombatRangePadding = 10f;
+    private const float BossNonFateCleanupRadius = 15f;
     private const float BossEmergencyCleanupHpRatio = 0.35f;
     private const float IdleFlightHeight = 22f;
     private const float IdleFlightMinHorizontalOffset = 12f;
     private const float IdleFlightMaxHorizontalOffset = 20f;
     private static readonly TimeSpan UnreachableCenterFallbackDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan LandingTimeout = TimeSpan.FromSeconds(18);
+    private static readonly TimeSpan LandingTimeout = TimeSpan.FromSeconds(12);
     private DateTime preparationStartedAt = DateTime.MinValue;
     private DateTime preparationLastActionAt = DateTime.MinValue;
     private DateTime preparationInteractionAt = DateTime.MinValue;
@@ -311,11 +281,8 @@ public sealed unsafe class FateAutomationController : IDisposable
     private int preparationTalkCallbackAttempts;
     private bool preparationTextAdvanceEnabled;
     private ulong? preparationTargetObjectId;
-    private DateTime escortFollowLastRequestAt = DateTime.MinValue;
-    private Vector3? escortFollowLastPosition;
     private BossCleanupContinuation bossCleanupContinuation;
     private ushort? bossCleanupFateId;
-    private ulong? bossCleanupTargetId;
     private DateTime bossCleanupNoTargetSince = DateTime.MinValue;
     private DateTime bossCancelSyncStartedAt = DateTime.MinValue;
     private DateTime bossEnvironmentLogAt = DateTime.MinValue;
@@ -328,10 +295,18 @@ public sealed unsafe class FateAutomationController : IDisposable
     private DateTime aethernetTeleportStartedAt = DateTime.MinValue;
     private bool navigationRecoveryTeleportIssued;
     private int navigationRecoveryAttempts;
+    private int landingRecoveryAttempts;
+    private Vector3? landingRecoveryDestination;
+    private uint? mapReentryTerritory;
+    private bool mapReentryTeleportRequired;
     private bool navigationOnlyRequested;
     private ushort? navigationOnlyFateId;
     private bool temporaryTargetActive;
     private ushort temporaryTargetFateId;
+    private int temporaryTargetRequiredCount = 1;
+    private int temporaryTargetCompletedCount;
+    private uint temporaryPreviousSingleMapTerritoryId;
+    private bool temporaryTerritoryOverridden;
     private AutomationMode temporaryPreviousMode;
     private ushort? temporaryPreviousTargetFateId;
     private List<ushort> temporaryPreviousTargetFateIds = [];
@@ -340,6 +315,7 @@ public sealed unsafe class FateAutomationController : IDisposable
     private bool disposed;
     private string statusReason = "未启动";
     private IReadOnlyList<FateCandidateSnapshot> candidateSnapshot = [];
+    private string singleFateResult = "None";
 
     public FateAutomationController(
         AutoFatreConfiguration configuration,
@@ -359,6 +335,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         LifestreamIpc lifestream,
         FateRepository fates,
         StaticFateCatalog staticFateCatalog,
+        StaticFateTerritoryCatalog staticFateTerritoryCatalog,
         FateTargetSelector targetSelector,
         InventoryCounter inventoryCounter,
         CompanionAdapter companion,
@@ -369,7 +346,8 @@ public sealed unsafe class FateAutomationController : IDisposable
         SoundAlertAdapter soundAlerts,
         TextAdvanceIpc textAdvance,
         IAddonLifecycle addonLifecycle,
-        IGameGui gameGui)
+        IGameGui gameGui,
+        IGameInteropProvider gameInteropProvider)
     {
         this.configuration = configuration;
         this.log = log;
@@ -389,7 +367,10 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.lifestream = lifestream;
         this.fates = fates;
         this.staticFateCatalog = staticFateCatalog;
+        this.staticFateTerritoryCatalog = staticFateTerritoryCatalog;
         this.targetSelector = targetSelector;
+        this.combatTargets = new CombatTargetSelection(configuration);
+        this.combatMovement = new CombatMovement(configuration);
         this.inventoryCounter = inventoryCounter;
         this.companion = companion;
         this.persistConfiguration = persistConfiguration;
@@ -410,6 +391,7 @@ public sealed unsafe class FateAutomationController : IDisposable
                     row.Name.ToString(),
                     FateCombatProfile.From(row.Rule, row.Icon)));
 
+        this.fateRewards = new FateRewardListener(gameInteropProvider);
         this.framework.Update += this.OnFrameworkUpdate;
         this.clientState.Login += this.OnLogin;
         this.clientState.Logout += this.OnLogout;
@@ -442,6 +424,8 @@ public sealed unsafe class FateAutomationController : IDisposable
     public int StaticFateCatalogFateCount => this.staticFateCatalog.FateCount;
     public int StaticFateCatalogCollectionCount => this.staticFateCatalog.CollectionCount;
     public int AggroCount => this.aggroCount;
+    private byte CurrentClassJobRole => this.objectTable.LocalPlayer?.ClassJob.ValueNullable?.Role ?? 0;
+    public int CurrentMaxAggroCount => this.configuration.GetMaxAggroCount(this.CurrentClassJobRole);
     public int PresetIndex => this.presetIndex;
     public int PresetCompletedFates => this.presetCompletedFates;
     public int TotalCompletedFates => this.totalCompletedFates;
@@ -478,6 +462,10 @@ public sealed unsafe class FateAutomationController : IDisposable
             .Distinct()
             .Count()
         : 0;
+    public bool IsSingleFateActive => this.temporaryTargetActive;
+    public string SingleFateResult => this.singleFateResult;
+    public int SingleFateCompletedCount => this.temporaryTargetCompletedCount;
+    public int SingleFateRequiredCount => this.temporaryTargetRequiredCount;
 
     public int GetPresetStopConditionProgress(int mapIndex, StopCondition stop)
     {
@@ -487,7 +475,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             || mapIndex >= maps.Count)
             return 0;
 
-        int target = Math.Max(1, stop.Kind == StopConditionKind.ItemCount ? stop.ItemCount : stop.FateCount);
+        int target = stop.RequiredProgress;
         if (mapIndex < this.presetIndex)
             return target;
         if (mapIndex > this.presetIndex)
@@ -499,6 +487,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             StopConditionKind.ItemCount => stop.ItemId == 0 ? 0 : this.inventoryCounter.Count(stop.ItemId),
             StopConditionKind.TargetFate => this.ExpandFateSelection(stop.TargetFateId)
                 .Sum(fateId => this.presetTargetFateCounts.GetValueOrDefault(fateId)),
+            StopConditionKind.NoFates => this.noFateStopTimer.ElapsedSeconds,
             _ => 0,
         };
     }
@@ -517,8 +506,31 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     public void SetTemporaryTargetFateForUi(ushort fateId)
     {
-        if (this.fates.Find(fateId) is not { } fate)
+        this.BeginTemporaryTargetFate(fateId, 1, "UI 临时目标 FATE", updateSingleFateResult: false);
+    }
+
+    /// <summary>Starts an in-memory one-shot FATE objective for an external automation plugin.</summary>
+    public bool StartSingleFate(ushort fateId, int requiredCount)
+    {
+        if (fateId == 0 || requiredCount <= 0 || this.state != AutomationState.Stopped || this.temporaryTargetActive)
+            return false;
+
+        _ = this.framework.RunOnFrameworkThread(() =>
+            this.BeginTemporaryTargetFate(fateId, requiredCount, "IPC 单 FATE", updateSingleFateResult: true));
+        return true;
+    }
+
+    private void BeginTemporaryTargetFate(ushort fateId, int requiredCount, string reason, bool updateSingleFateResult)
+    {
+        FateSnapshot? fate = this.fates.Find(fateId);
+        bool hasMappedTerritory = this.staticFateTerritoryCatalog.TryGet(fateId, out FateTerritoryEntry? territoryEntry);
+        if (fate is null && (!updateSingleFateResult || !hasMappedTerritory))
+        {
+            if (updateSingleFateResult)
+                this.singleFateResult = "Failed";
+            this.statusReason = $"找不到 FATE #{fateId}";
             return;
+        }
 
         bool wasInCombat = this.IsCombatEngaged();
         ushort? previousFateId = this.activeFateId;
@@ -530,6 +542,10 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             this.temporaryTargetActive = true;
             this.temporaryTargetFateId = fateId;
+            this.temporaryTargetRequiredCount = Math.Max(1, requiredCount);
+            this.temporaryTargetCompletedCount = 0;
+            this.temporaryPreviousSingleMapTerritoryId = this.configuration.SingleMapTerritoryId;
+            this.temporaryTerritoryOverridden = false;
             this.temporaryPreviousMode = this.configuration.Mode;
             this.temporaryPreviousTargetFateId = this.configuration.TargetFateId;
             this.temporaryPreviousTargetFateIds = this.configuration.TargetFateIds.ToList();
@@ -541,20 +557,38 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.configuration.TargetFateIds = [fateId];
         this.configuration.TargetFateId = fateId;
         this.configuration.Mode = AutomationMode.TargetFate;
+        if (updateSingleFateResult && territoryEntry is not null)
+        {
+            this.configuration.SingleMapTerritoryId = territoryEntry.TerritoryId;
+            this.temporaryTerritoryOverridden = true;
+            this.ClearCurrentMapTerritory();
+        }
         this.configuration.Enabled = true;
-        this.SelectFate(fate, "UI 临时目标 FATE");
+        if (fate is not null && !this.navigationOnlyRequested && !this.fateCompletions.Tracking)
+            this.StartFateStatistics();
+        if (updateSingleFateResult)
+            this.singleFateResult = "Running";
+        if (fate is not null)
+            this.SelectFate(fate, reason);
+        else
+            this.Start();
         if (wasInCombat)
         {
             this.preemptSyncFateId = previousFateId;
             this.BeginCombatCleanup(
                 CleanupContinuation.PreemptTravel,
                 "临时目标 FATE 已指定；立即停止当前接战并跑离，再前往临时目标");
-            this.cleanupEscapeOrigin = previousFatePosition;
+            this.combatMovement.EscapeOrigin = previousFatePosition;
         }
     }
 
     public void Start()
     {
+        this.fateAlertTracking.Reset();
+        this.pendingSoundAlerts.Clear();
+        this.soundAlertCooldowns.Clear();
+        this.noFateStopTimer.Reset();
+        this.nextSnapshotAt = DateTime.MinValue;
         this.configuration.Migrate();
         this.configuration.Normalize();
         this.ClearCurrentMapTerritory();
@@ -563,6 +597,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.presetCompletedFates = 0;
         this.presetTargetFateCounts.Clear();
         this.totalCompletedFates = 0;
+        this.StartFateStatistics();
         // Capture a "current map" target as soon as a run starts. If the client is still
         // loading, ResolvePlanTerritory will capture it on the first usable framework tick.
         this.GetCurrentPlan();
@@ -584,8 +619,13 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     public void Stop(string reason = "已由用户停止")
     {
+        this.fateAlertTracking.Reset();
+        this.pendingSoundAlerts.Clear();
+        this.noFateStopTimer.Reset();
         bool restoreTemporary = this.temporaryTargetActive;
         this.configuration.Enabled = false;
+        this.fateCompletions.Stop();
+        this.PublishFateRewardContext();
         this.startupGroundCheckPending = false;
         this.startupFateRangeSelectionPending = false;
         this.mapArrivalCheckPending = false;
@@ -593,13 +633,19 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.CancelOwnedActions();
         this.ResetCurrentActivity();
         if (restoreTemporary)
+        {
+            this.singleFateResult = "Stopped";
             this.RestoreTemporaryTarget(reason, restoreEnabled: false);
+        }
         this.ClearCurrentMapTerritory();
         this.Transition(AutomationState.Stopped, reason);
     }
 
     public void Pause(string reason = "已由用户暂停")
     {
+        this.noFateStopTimer.Reset();
+        this.fateAlertTracking.ResetPlayers();
+        this.pendingSoundAlerts.Clear();
         this.CancelOwnedActions();
         this.ResetManualDutyRoundTripState();
         this.ClearTarget();
@@ -610,12 +656,20 @@ public sealed unsafe class FateAutomationController : IDisposable
     {
         if (!this.configuration.Enabled)
             this.configuration.Enabled = true;
+        if (!this.fateCompletions.Tracking)
+            this.StartFateStatistics();
 
         this.recoveryAttempts = 0;
+        this.landingRecoveryAttempts = 0;
+        this.landingRecoveryDestination = null;
+        this.mapReentryTerritory = null;
+        this.mapReentryTeleportRequired = false;
         this.navigationRecoveryAttempts = 0;
         this.navigationRecoveryTeleportIssued = false;
         this.navigationRecoveryStartedAt = DateTime.MinValue;
         this.levelSyncAttempts = 0;
+        this.combatMovement.ResetAreaReturn();
+        this.returnAreaResumeState = null;
         this.Transition(
             this.pendingFateResult is null ? AutomationState.ValidatingPlan : AutomationState.CleaningUpCombat,
             this.pendingFateResult is null ? "重新验证并继续" : "继续战后清场与结算");
@@ -628,7 +682,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         if (this.state == AutomationState.ResettingAggroViaDuty)
         {
-            this.AddDiagnostic(DiagnosticSeverity.Warning, "泰坦副本进退已经在执行，忽略重复请求");
+            this.AddDiagnostic(DiagnosticSeverity.Warning, "伊弗利特副本进退已经在执行，忽略重复请求");
             return;
         }
 
@@ -653,7 +707,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        if (this.dutyAggroReset.IsInTitanDuty
+        if (this.dutyAggroReset.IsInIfritDuty
             || this.condition[ConditionFlag.BoundByDuty]
             || this.condition[ConditionFlag.BoundByDuty56]
             || this.condition[ConditionFlag.BoundByDuty95])
@@ -950,6 +1004,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
 
         this.disposed = true;
+        this.fateRewards.Dispose();
         this.framework.Update -= this.OnFrameworkUpdate;
         this.clientState.Login -= this.OnLogin;
         this.clientState.Logout -= this.OnLogout;
@@ -973,8 +1028,8 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (this.manualDutyRoundTrip || this.state == AutomationState.ResettingAggroViaDuty)
         {
             if (this.state != AutomationState.ResettingAggroViaDuty)
-                this.Transition(AutomationState.ResettingAggroViaDuty, "泰坦副本进退登录事件恢复，保持退出流程");
-            this.statusReason = "手动泰坦副本进退等待角色数据恢复，保持退出流程";
+            this.Transition(AutomationState.ResettingAggroViaDuty, "伊弗利特副本进退登录事件恢复，保持退出流程");
+            this.statusReason = "手动伊弗利特副本进退等待角色数据恢复，保持退出流程";
             return;
         }
         this.Transition(
@@ -984,6 +1039,10 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void OnLogout(int _, int __)
     {
+        this.noFateStopTimer.Reset();
+        this.fateAlertTracking.ResetPlayers();
+        this.pendingSoundAlerts.Clear();
+        this.nextSnapshotAt = DateTime.MinValue;
         bool dutyResetInProgress = this.manualDutyRoundTrip
             || this.state == AutomationState.ResettingAggroViaDuty;
         if (dutyResetInProgress)
@@ -992,7 +1051,19 @@ public sealed unsafe class FateAutomationController : IDisposable
             // clear the duty phase here: the next update must continue the exit sequence.
             this.StopNavigationOperation();
             this.landing.StopDescending();
-            this.Transition(AutomationState.ResettingAggroViaDuty, "泰坦副本进退区域切换中，保持退出流程");
+            this.Transition(AutomationState.ResettingAggroViaDuty, "伊弗利特副本进退区域切换中，保持退出流程");
+            return;
+        }
+
+        if (this.mapReentryTerritory is not null && this.configuration.Enabled
+            && this.state is not AutomationState.Paused and not AutomationState.Faulted
+            && (this.IsBetweenAreas() || this.teleportArrival.Pending))
+        {
+            // Keep both hops and the real-loading checkpoint through transient Logout events.
+            this.teleportArrival.Observe(this.IsBetweenAreas());
+            this.StopNavigationOperation();
+            this.landing.StopDescending();
+            this.Transition(AutomationState.WaitingForTerritory, "重新进图正在加载，保留传送路线与到达检查");
             return;
         }
 
@@ -1004,35 +1075,40 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void OnTerritoryChanged(uint territory)
     {
+        this.noFateStopTimer.Reset();
+        this.fateAlertTracking.ResetPlayers();
+        this.pendingSoundAlerts.Remove("FATE 范围内新增玩家");
+        this.nextSnapshotAt = DateTime.MinValue;
+        this.preSyncPosition = null;
+        this.preSyncDiagnosticAt = DateTime.MinValue;
+        this.companionChocoboActionPending = false;
         this.teleportArrival.Observe(loading: true);
+        this.landingRecoveryAttempts = 0;
+        this.landingRecoveryDestination = null;
         this.entryPetSummonedTerritory = null;
         this.entryPetRetryAt = DateTime.MinValue;
         this.idleFlightRaised = false;
         this.idleFlightDiagnosticAt = DateTime.MinValue;
         this.returnAreaDiagnosticAt = DateTime.MinValue;
+        this.combatMovement.ResetAreaReturn();
+        this.returnAreaResumeState = null;
         bool deathRecoveryInProgress = this.state is AutomationState.DeadWaitingForRaise or AutomationState.DeadReturning;
         bool dutyResetInProgress = this.state == AutomationState.ResettingAggroViaDuty;
         bool navigationRecoveryInProgress = this.state == AutomationState.RecoveringNavigation;
         bool fateAetheryteTeleportInProgress = this.fateAetheryteTeleportPlan is not null;
         this.StopNavigationOperation();
         this.landing.StopDescending();
-        this.pullTargetId = null;
-        this.killTargetId = null;
-        this.lostPriorityTargetId = null;
-        this.lostPriorityTargetKind = null;
+        this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
         this.bossCleanupFateId = null;
-        this.bossCleanupTargetId = null;
+        this.combatTargets.BossCleanupTargetId = null;
         this.bossCleanupNoTargetSince = DateTime.MinValue;
         this.bossCancelSyncStartedAt = DateTime.MinValue;
         this.bossEnvironmentLogAt = DateTime.MinValue;
         this.bossPreCombatCleanupChecked = false;
         this.ResetPullBatch();
-        this.escortFollowLastRequestAt = DateTime.MinValue;
-        this.escortFollowLastPosition = null;
-        this.cleanupTargetId = null;
+        this.combatMovement.ResetEscort();
+        this.combatTargets.CleanupTargetId = null;
         this.cleanupDiagnosticAt = DateTime.MinValue;
         this.preparationStartedAt = DateTime.MinValue;
         this.preparationLastActionAt = DateTime.MinValue;
@@ -1043,10 +1119,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.preparationTargetObjectId = null;
         this.fateParticipationSince = DateTime.MinValue;
         this.fallbackLandingForParticipation = false;
-        this.completedProgressObservedAt = DateTime.MinValue;
         this.activeFateParticipationObserved = false;
-        this.terminalFateObservedAt = DateTime.MinValue;
-        this.terminalFateState = null;
         if (!dutyResetInProgress && !navigationRecoveryInProgress && !fateAetheryteTeleportInProgress)
         {
             this.activeFateId = null;
@@ -1082,6 +1155,18 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
 
         DateTime now = DateTime.UtcNow;
+        if (!this.CanObserveMap(now))
+        {
+            this.noFateStopTimer.Reset();
+            this.fateAlertTracking.ResetPlayers();
+            this.pendingSoundAlerts.Clear();
+        }
+        // Casting must stop staging movement before any early return/action throttle.
+        if (this.travelSessionActive && this.travelPurpose == NavigationPurpose.PreSyncPosition
+            && (this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87]))
+            this.StopNavigationOperation();
+        this.PublishFateRewardContext();
+        this.DrainFateRewards();
         this.teleportArrival.Observe(this.IsBetweenAreas());
         bool manualDutyOperation = this.manualDutyRoundTrip;
         bool dutyResetOperation = manualDutyOperation || this.state == AutomationState.ResettingAggroViaDuty;
@@ -1089,7 +1174,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             if (dutyResetOperation)
             {
-                this.statusReason = "泰坦副本进退等待区域角色数据恢复，不切换到普通自动化流程";
+                this.statusReason = "伊弗利特副本进退等待区域角色数据恢复，不切换到普通自动化流程";
                 return;
             }
 
@@ -1106,12 +1191,14 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         if (this.manualDutyRoundTrip && this.state != AutomationState.ResettingAggroViaDuty)
         {
-            this.Transition(AutomationState.ResettingAggroViaDuty, "泰坦副本进退检测到状态被区域事件改写，恢复退出流程");
+            this.Transition(AutomationState.ResettingAggroViaDuty, "伊弗利特副本进退检测到状态被区域事件改写，恢复退出流程");
         }
 
         if (now >= this.nextSnapshotAt)
         {
             this.fates.Refresh();
+            this.ObserveMapAlertsAndStopTimer(now);
+            this.ObserveFateCompletions();
             this.RefreshCandidateSnapshot();
             this.LogNewFateTargetData();
             this.RemoveExpiredCooldowns(now);
@@ -1121,6 +1208,13 @@ public sealed unsafe class FateAutomationController : IDisposable
         if ((!this.configuration.Enabled && !manualDutyOperation)
             || this.state is AutomationState.Stopped or AutomationState.Paused or AutomationState.Faulted)
             return;
+
+        if (this.CanObserveMap(now))
+        {
+            foreach (string reason in this.pendingSoundAlerts.ToArray())
+                if (this.PlaySoundAlert(reason))
+                    this.pendingSoundAlerts.Remove(reason);
+        }
 
         if (this.condition[ConditionFlag.Unconscious])
         {
@@ -1137,7 +1231,7 @@ public sealed unsafe class FateAutomationController : IDisposable
                 this.Transition(AutomationState.CleaningUpCombat, "角色已复活，继续完成战后清场与结算");
             else
             {
-                this.ResetCurrentActivity();
+                this.ResetCurrentActivity(preserveMapReentry: true);
                 bool waitForTerritory = DateTime.UtcNow < this.territoryStableAfter || this.IsBetweenAreas();
                 this.Transition(
                     waitForTerritory ? AutomationState.WaitingForTerritory : AutomationState.ValidatingPlan,
@@ -1173,34 +1267,15 @@ public sealed unsafe class FateAutomationController : IDisposable
                     this.activeFateParticipationObserved = true;
                     this.AddDiagnostic(
                         DiagnosticSeverity.Debug,
-                        $"已确认玩家进入活动 FATE #{activeId}，后续目标消失可用于完成结算");
+                        $"已确认玩家进入活动 FATE #{activeId}（消失不再推断成功）");
                 }
             }
-            if (active?.State is FateState.Ended or FateState.Failed)
+            if (active?.State == FateState.Failed)
             {
-                if (this.terminalFateState != active.State)
-                {
-                    this.terminalFateState = active.State;
-                    this.terminalFateObservedAt = now;
-                    this.AddDiagnostic(
-                        DiagnosticSeverity.Warning,
-                        $"检测到 FATE #{active.FateId} 终止状态 {active.State}，开始连续确认（进度 {active.Progress}%；剩余 {active.TimeRemaining}s）");
-                }
-
-                if (now - this.terminalFateObservedAt >= TerminalFateConfirmationWindow)
-                {
-                    this.BeginFateCleanup(active, succeeded: active.State == FateState.Ended);
-                    return;
-                }
-
-                this.statusReason = $"确认 FATE #{active.FateId} 终止状态，避免瞬时状态抖动误清场";
-                this.nextActionAt = now.AddMilliseconds(250);
+                this.LogFateCountComparison("状态失败", active.FateId, this.fateCompletions.Scope,
+                    $"{active.Name}；State=Failed；Progress={active.Progress}%；本次状态成功增量=0");
+                this.BeginFateCleanup(active, succeeded: false);
                 return;
-            }
-            else
-            {
-                this.terminalFateState = null;
-                this.terminalFateObservedAt = DateTime.MinValue;
             }
 
             // Collection FATEs get a higher-priority hand-in path only while the player still
@@ -1235,77 +1310,37 @@ public sealed unsafe class FateAutomationController : IDisposable
                 }
             }
 
-            // Some client revisions leave a completed FATE in Running until the next
-            // director update. A stable 100% progress is enough to settle success, while
-            // retaining the same confirmation window used by the explicit Ended state.
-            if (active is not null && active.Progress >= 100)
-            {
-                if (this.completedProgressObservedAt == DateTime.MinValue)
-                {
-                    this.completedProgressObservedAt = now;
-                    this.AddDiagnostic(
-                        DiagnosticSeverity.Debug,
-                        $"FATE #{active.FateId} 进度达到 100%，等待稳定确认完成");
-                }
-                else if (now - this.completedProgressObservedAt >= TerminalFateConfirmationWindow)
-                {
-                    this.BeginFateCleanup(
-                        active,
-                        succeeded: true,
-                        completionReason: $"FATE 进度稳定达到 {active.Progress}%");
-                    return;
-                }
+            // A priority lost target can appear on the same update window in which a FATE
+            // reaches its terminal progress/state. Give the target the same first chance as
+            // ordinary combat before the completion guard moves the activity to cleanup.
+            if (active is not null
+                && FateCompletionTracking.IsComplete(active)
+                && this.TryPreemptLostPriorityTargetBeforeCompletion(now, active))
+                return;
 
-                this.statusReason = $"确认 FATE #{active.FateId} 已完成（进度 {active.Progress}%）";
-                this.nextActionAt = now.AddMilliseconds(250);
+            // AutoFate-style completion: Ending / Ended / 100%, only after observed participation.
+            // Counting already happened once in the tracker; cleanup must never increment again.
+            if (active is not null && FateCompletionTracking.IsComplete(active))
+            {
+                this.BeginFateCleanup(active,
+                    succeeded: this.fateCompletions.WasNotified(this.clientState.TerritoryType, GetPublicInstanceId(), active),
+                    completionReason: $"状态方案确认结束：{active.State}，进度 {active.Progress}%");
                 return;
             }
 
-            this.completedProgressObservedAt = DateTime.MinValue;
-
-            // A missing FATE is not normally proof of success. Some client revisions remove a
-            // completed FATE before exposing its Ended state, so a stable disappearance after
-            // 100% progress is the safe fallback completion signal.
             if (active is null && this.lastActiveFateSnapshot is { } last)
             {
                 if (this.activeFateMissingSince == DateTime.MinValue)
-                {
                     this.activeFateMissingSince = now;
-                }
                 if (now - this.activeFateMissingSince >= TimeSpan.FromSeconds(2))
                 {
-                    bool disappearedAfterParticipation = this.activeFateParticipationObserved
-                        && last.TimeRemaining > 0;
-                    if (last.Progress >= 100 || disappearedAfterParticipation)
-                    {
-                        this.AddDiagnostic(
-                            DiagnosticSeverity.Information,
-                            last.Progress >= 100
-                                ? $"FATE #{last.FateId} 已从 IFateTable 消失且最后进度为 {last.Progress}%，按完成结算"
-                                : $"FATE #{last.FateId} 已从 IFateTable 消失；玩家已进入且剩余时间为 {last.TimeRemaining}s，按完成结算");
-                        this.BeginFateCleanup(
-                            last,
-                            succeeded: true,
-                            completionReason: last.Progress >= 100
-                                ? $"FATE 从列表消失，最后观测进度 {last.Progress}%"
-                                : $"FATE 从列表消失，玩家已进入且最后剩余时间 {last.TimeRemaining}s");
-                        return;
-                    }
-
-                    this.AddDiagnostic(
-                        DiagnosticSeverity.Warning,
-                        $"FATE #{last.FateId} 已从 IFateTable 消失，但未观察到 Ended（最后进度 {last.Progress}%）；放弃当前活动并重新扫描，不计为完成");
-                    this.AbandonActiveFate("目标 FATE 消失且未确认 Ended 状态");
+                    if (this.fateCompletions.WasNotified(this.clientState.TerritoryType, GetPublicInstanceId(), last))
+                        this.BeginFateCleanup(last, succeeded: true, completionReason: "已通知完成的 FATE 从列表移除");
+                    else
+                        this.AbandonActiveFate("目标 FATE 消失且未观察到状态方案完成事件，不猜测成功");
                     return;
                 }
-
-                // The FATE table can briefly remove an ended event before the confirmation
-                // window has elapsed. Keep the active state alive during that window; falling
-                // through to HandleCombat/HandleBossCombat would resolve the missing FATE as
-                // an ordinary failure and discard a completion that is about to be confirmed.
-                this.statusReason = last.Progress >= 100 || this.activeFateParticipationObserved
-                    ? "FATE 已从列表消失，等待完成结算确认"
-                    : "FATE 暂时从列表消失，等待状态确认";
+                this.statusReason = "FATE 暂时从列表消失，等待状态确认（消失本身不计完成）";
                 this.nextActionAt = now.AddMilliseconds(250);
                 return;
             }
@@ -1323,6 +1358,31 @@ public sealed unsafe class FateAutomationController : IDisposable
             {
                 this.statusReason = "等待战利品进入背包后复查预设停止条件";
                 this.nextActionAt = now.AddMilliseconds(250);
+                return;
+            }
+        }
+
+        // Position safety runs every frame, before action throttles or combat handlers.
+        // It also covers collection combat and periodic companion checks.
+        if (!this.IsBetweenAreas() && now >= this.territoryStableAfter)
+        {
+            if (this.state == AutomationState.ReturningToFateArea)
+            {
+                this.HandleReturnToFateArea(now);
+                return;
+            }
+
+            if (FateAreaReturnSession.ShouldMonitor(this.state, this.companionResumeState,
+                    this.condition[ConditionFlag.InCombat])
+                && this.ResolveActiveFate() is { } monitoredFate
+                && this.objectTable.LocalPlayer is { } monitoredPlayer
+                && FateAreaReturnSession.IsNearBoundary(monitoredPlayer.Position, monitoredFate.Position, monitoredFate.Radius))
+            {
+                AutomationState resumeState = this.state;
+                this.BeginReturnToFateArea(
+                    $"战斗位置达到 FATE #{monitoredFate.FateId} 半径减 3 码边界：距中心 {HorizontalDistance(monitoredPlayer.Position, monitoredFate.Position):0.0}，半径 {monitoredFate.Radius:0.0}，边界 {FateAreaReturnSession.GetBoundaryDistance(monitoredFate.Radius):0.0}，立即步行返回 FATE 中心",
+                    resumeState);
+                this.HandleReturnToFateArea(now);
                 return;
             }
         }
@@ -1370,6 +1430,9 @@ public sealed unsafe class FateAutomationController : IDisposable
             case AutomationState.LandingForFate:
                 this.HandleLandingForFate(now);
                 break;
+            case AutomationState.RepositioningForLanding:
+                this.HandleLandingReposition(now);
+                break;
             case AutomationState.DismountingForFate:
                 this.HandleDismountForFate(now);
                 break;
@@ -1410,6 +1473,95 @@ public sealed unsafe class FateAutomationController : IDisposable
         }
     }
 
+    private static uint GetPublicInstanceId()
+    {
+        var ui = FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.Instance();
+        return ui is null ? 0 : ui->PublicInstance.InstanceId;
+    }
+
+    private void StartFateStatistics()
+    {
+        this.totalCompletedFates = this.presetCompletedFates = 0;
+        this.presetTargetFateCounts.Clear();
+        this.fateCompletions.Start();
+        this.PublishFateRewardContext();
+        this.AddDiagnostic(this.fateRewards.IsAvailable ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
+            this.fateRewards.IsAvailable ? "FATE 双方案统计已清零：状态方案控制任务，奖励包方案独立对照"
+                : $"FATE 奖励包监听不可用：{this.fateRewards.Error}；状态方案继续运行，对照不可用，不将零视为真实结果");
+    }
+
+    private void PublishFateRewardContext()
+    {
+        bool loaded = this.clientState.IsLoggedIn && this.playerState.IsLoaded;
+        uint territory = loaded ? this.clientState.TerritoryType : 0;
+        uint instance = loaded ? GetPublicInstanceId() : 0;
+        bool active = this.configuration.Enabled && this.fateCompletions.Tracking;
+        if (this.fateRewardContext is { } context && context.Session == this.fateCompletions.Session
+            && context.Scope == this.fateCompletions.Scope && context.AutomationActive == active
+            && context.Territory == territory && context.Instance == instance)
+            return;
+        this.fateRewardContext = new(this.fateCompletions.Session, this.fateCompletions.Scope, active, territory, instance);
+        this.fateRewards.SetContext(this.fateRewardContext);
+    }
+
+    private void ObserveFateCompletions()
+    {
+        if (!this.configuration.Enabled || !this.fateCompletions.Tracking || this.navigationOnlyRequested)
+            return;
+        // Observation continues while paused/dead, but never moves the character. It precedes
+        // the death and action-delay early returns so terminal transitions are not discarded.
+        NativeFateManager* manager = NativeFateManager.Instance();
+        ushort current = manager is null || manager->CurrentFate is null ? (ushort)0 : manager->GetCurrentFateId();
+        foreach (FateCompletionTracking.Entry entry in this.fateCompletions.Observe(
+                     this.fates.Snapshot, this.clientState.TerritoryType, GetPublicInstanceId(), current))
+        {
+            this.totalCompletedFates = this.fateCompletions.StateTotal;
+            if (entry.Scope == this.fateCompletions.Scope)
+            {
+                this.presetCompletedFates++;
+                ushort id = entry.Occurrence.FateId;
+                this.presetTargetFateCounts[id] = this.presetTargetFateCounts.GetValueOrDefault(id) + 1;
+            }
+            this.LogFateCountComparison("状态完成", entry.Occurrence.FateId, entry.Scope,
+                $"{entry.Snapshot.Name}；State={entry.Snapshot.State}；Progress={entry.Snapshot.Progress}%；"
+                + $"Territory={entry.Occurrence.Territory}；Instance={entry.Occurrence.Instance}；Start={entry.Occurrence.StartTimeEpoch}；"
+                + $"Medal={entry.Reward?.MedalDescription ?? "等待奖励包"}");
+        }
+    }
+
+    private void DrainFateRewards()
+    {
+        int errors = this.fateRewards.TakeCopyErrors();
+        if (errors > 0)
+            this.AddDiagnostic(DiagnosticSeverity.Warning, $"FATE 奖励包复制失败 {errors} 次，对照数据可能缺失");
+        while (this.fateRewards.TryDequeue(out FateRewardObservation reward))
+        {
+            var result = this.fateCompletions.ObserveReward(reward);
+            if (!result.Accepted)
+                continue;
+            string name = result.Entry?.Snapshot.Name
+                ?? (this.clientFateDefinitions.TryGetValue(reward.FateId, out var definition) ? definition.Name : "未知");
+            this.LogFateCountComparison("奖励包结算", reward.FateId, result.Scope,
+                $"{name}；Success={reward.Success}；Medal={reward.MedalDescription}({reward.Medal})；Flags=0x{reward.Flags:X2}；"
+                + $"ReceivedAt={reward.ReceivedAt:O}；CaptureTerritory={reward.Territory}；CaptureInstance={reward.Instance}；"
+                + $"归属={((result.Entry is null) ? "未匹配参与记录（独立统计）" : $"Start={result.Entry.Occurrence.StartTimeEpoch}")}；"
+                + $"本包成功增量={(reward.Success ? 1 : 0)}");
+        }
+    }
+
+    private void LogFateCountComparison(string source, ushort fateId, int scope, string details)
+    {
+        var counts = this.fateCompletions.Counts(scope);
+        int difference = this.fateCompletions.StateTotal - this.fateCompletions.RewardTotal;
+        string packetCount = this.fateRewards.IsAvailable ? this.fateCompletions.RewardTotal.ToString() : "不可用";
+        string differenceText = this.fateRewards.IsAvailable ? difference.ToString() : "不可对照";
+        this.AddDiagnostic(DiagnosticSeverity.Information,
+            $"FATE 双方案对照 [{source}] Run={this.fateCompletions.Session} FATE=#{fateId}："
+            + $"状态累计={this.fateCompletions.StateTotal}，奖励包累计={packetCount}，差值(状态-奖励)={differenceText}；"
+            + $"步骤={scope}（当前={this.fateCompletions.Scope}），步骤状态={counts.State}，步骤奖励={counts.Reward}；"
+            + "两事件可能先后到达，瞬时差值不等于最终漏计；" + details);
+    }
+
     private void BeginCompanionCheckpoint(
         CompanionCheckpointKind kind,
         AutomationState resumeState,
@@ -1428,7 +1580,10 @@ public sealed unsafe class FateAutomationController : IDisposable
         // the middle of combat.
         this.entryWeaponHandled = kind == CompanionCheckpointKind.CombatPeriodic
             || this.GetCurrentPresetEntryWeaponId() == 0;
-        this.companionActionDeadline = DateTime.UtcNow.AddSeconds(1);
+        // There is no reason to delay a checkpoint that only reads already-satisfied
+        // state. Set a deadline only after an actual summon/equip request is accepted.
+        this.companionActionDeadline = DateTime.MinValue;
+        this.companionChocoboActionPending = false;
         if (kind == CompanionCheckpointKind.CombatPeriodic)
             this.nextCompanionCheckAt = DateTime.UtcNow.AddSeconds(30);
         this.Transition(AutomationState.CheckingCompanions, reason);
@@ -1479,7 +1634,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.AddDiagnostic(sent ? DiagnosticSeverity.Information : DiagnosticSeverity.Debug, this.statusReason);
             this.nextActionAt = now.AddMilliseconds(250);
             if (now - this.companionCheckpointStartedAt > LandingTimeout)
-                this.FailCompanionCheckpoint("伙伴检查前 18 秒内未能下坐骑");
+                this.FailCompanionCheckpoint("伙伴检查前 12 秒内未能下坐骑");
             return;
         }
 
@@ -1507,8 +1662,6 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             if (this.TrySummonEntryPet(now))
                 return;
-            if (this.entryPetSummonedTerritory != this.clientState.TerritoryType && now < this.companionActionDeadline)
-                return;
             this.companionEntryPetHandled = true;
         }
 
@@ -1522,26 +1675,66 @@ public sealed unsafe class FateAutomationController : IDisposable
                     DiagnosticSeverity.Debug,
                     $"指定武器已装备，跳过重复装备：ItemId={weaponId}");
                 this.statusReason = $"指定武器已装备：ItemId={weaponId}";
-                this.nextActionAt = now.AddMilliseconds(250);
+            }
+            else
+            {
+                if (now < this.companionActionDeadline)
+                {
+                    this.statusReason = "等待指定武器装备状态刷新";
+                    this.nextActionAt = now.AddMilliseconds(100);
+                    return;
+                }
+
+                bool equipped = this.companion.TryEquipItem(weaponId);
+                this.AddDiagnostic(equipped ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
+                    equipped ? $"已请求装备地图预设指定武器：ItemId={weaponId}" : $"指定武器装备请求失败：ItemId={weaponId}");
+                this.statusReason = equipped ? "指定武器装备请求已发送" : "等待指定武器装备请求重试";
+                if (!equipped)
+                {
+                    this.nextActionAt = now.AddMilliseconds(250);
+                    return;
+                }
+
+                // InventoryManager is read synchronously, but the game may apply the move
+                // on a later frame. Poll the same source instead of imposing a fixed delay
+                // when the item was already equipped.
+                this.companionActionDeadline = now.AddSeconds(1);
+                this.nextActionAt = now.AddMilliseconds(100);
                 return;
             }
-
-            bool equipped = this.companion.TryEquipItem(weaponId);
-            this.entryWeaponHandled = equipped && now >= this.companionActionDeadline;
-            this.AddDiagnostic(equipped ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
-                equipped ? $"已请求装备地图预设指定武器：ItemId={weaponId}" : $"指定武器装备请求失败：ItemId={weaponId}");
-            this.statusReason = equipped ? "指定武器装备请求已发送" : "等待指定武器装备请求重试";
-            this.nextActionAt = now.AddMilliseconds(500);
-            if (!equipped)
-                return;
         }
 
         if (!this.companionChocoboHandled)
         {
-            this.HandleChocoboCompanionCheckpoint(now);
+            bool needed = this.companion.NeedsChocobo;
+            bool actionRequested = this.HandleChocoboCompanionCheckpoint(now);
             this.companionChocoboHandled = true;
-            this.nextActionAt = now.AddMilliseconds(500);
-            return;
+            this.companionChocoboActionPending = actionRequested;
+            if (actionRequested)
+                this.companionActionDeadline = now.AddSeconds(5);
+            if (needed)
+            {
+                // A real summon/extend request needs a short client refresh window. Keep
+                // the existing retry spacing for a rejected request, but do not delay the
+                // already-satisfied path at all.
+                this.nextActionAt = now.AddMilliseconds(actionRequested ? 250 : 500);
+                return;
+            }
+        }
+
+        if (this.companionChocoboActionPending)
+        {
+            bool casting = this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87]
+                || this.objectTable.LocalPlayer?.IsCasting == true;
+            if (casting && now < this.companionActionDeadline)
+            {
+                this.statusReason = "等待陆行鸟伙伴召唤读条结束，再返回主流程";
+                this.nextActionAt = now.AddMilliseconds(100);
+                return;
+            }
+            if (casting)
+                this.AddDiagnostic(DiagnosticSeverity.Warning, "伙伴召唤后读条等待已达5秒，返回主流程并继续遵守移动读条保护");
+            this.companionChocoboActionPending = false;
         }
 
         AutomationState next = this.companionResumeState;
@@ -1560,7 +1753,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.Transition(next, $"伙伴检查点 {completedKind} 完成，继续主流程");
     }
 
-    private void HandleChocoboCompanionCheckpoint(DateTime now)
+    private bool HandleChocoboCompanionCheckpoint(DateTime now)
     {
         bool hasChocobo = this.companion.HasChocobo;
         float timeLeft = this.companion.ChocoboTimeLeft;
@@ -1572,7 +1765,7 @@ public sealed unsafe class FateAutomationController : IDisposable
                 $"陆行鸟伙伴检查：无需召唤；Territory={this.clientState.TerritoryType}，" +
                 $"HasChocobo={hasChocobo}，TimeLeft={timeLeft:0.0}s，基萨尔野菜={gysahlCount}，" +
                 $"InCombat={this.condition[ConditionFlag.InCombat]}");
-            return;
+            return false;
         }
 
         bool used = this.companion.TrySummonOrExtendChocobo(now);
@@ -1582,6 +1775,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             $"BetweenAreas={this.IsBetweenAreas()}，InCombat={this.condition[ConditionFlag.InCombat]}，" +
             $"HasChocobo={hasChocobo}，TimeLeft={timeLeft:0.0}s，基萨尔野菜={gysahlCount}，" +
             $"结果={used}，{this.companion.LastActionReason}");
+        return used;
     }
 
     private void FailCompanionCheckpoint(string reason)
@@ -1600,6 +1794,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.companionCheckpointStartedAt = DateTime.MinValue;
         this.companionEntryPetHandled = false;
         this.companionChocoboHandled = false;
+        this.companionChocoboActionPending = false;
         this.entryWeaponHandled = false;
     }
 
@@ -1648,6 +1843,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         // Evaluate the current preset's stop conditions before resolving territory. This lets
         // startup skip already-satisfied map entries without teleporting there first.
         if (this.configuration.Mode == AutomationMode.PresetSequence
+            && this.mapReentryTerritory is null
             && this.activeFateId is null
             && this.pendingFateResult is null
             && this.GetPresetMaps().Count > 0
@@ -1688,12 +1884,16 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
         PlanContext plan = this.GetCurrentPlan();
-        uint desiredTerritory = plan.TerritoryId;
+        uint desiredTerritory = this.mapReentryTerritory ?? plan.TerritoryId;
         bool atDestination = this.clientState.TerritoryType == desiredTerritory;
         if (this.teleportArrival.Complete(atDestination, this.IsBetweenAreas(), this.lifestream.IsBusy))
-            this.mapArrivalCheckPending = true;
-        if (atDestination && !this.teleportArrival.Pending)
         {
+            this.mapArrivalCheckPending = true;
+            this.mapReentryTeleportRequired = false;
+        }
+        if (atDestination && !this.teleportArrival.Pending && !this.mapReentryTeleportRequired)
+        {
+            this.mapReentryTerritory = null;
             this.ResetFailedTeleportCandidates();
             this.AddDiagnostic(
                 DiagnosticSeverity.Debug,
@@ -1953,14 +2153,8 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private bool TrySummonEntryPet(DateTime now)
     {
-        if (this.configuration.Mode != AutomationMode.PresetSequence
-            || this.entryPetSummonedTerritory == this.clientState.TerritoryType)
+        if (this.configuration.Mode != AutomationMode.PresetSequence)
             return false;
-        if (now < this.entryPetRetryAt)
-        {
-            this.nextActionAt = this.entryPetRetryAt;
-            return true;
-        }
 
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
         if (maps.Count == 0)
@@ -1970,6 +2164,41 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             this.entryPetSummonedTerritory = this.clientState.TerritoryType;
             return false;
+        }
+
+        // Reading the current minion is synchronous. Do not invoke the companion action or
+        // wait for a settle window when the requested pet is already active.
+        if (this.companion.IsMinionItemActive(plan.EntryPetItemId))
+        {
+            this.entryPetSummonedTerritory = this.clientState.TerritoryType;
+            this.AddDiagnostic(
+                DiagnosticSeverity.Debug,
+                $"地图进入宠物检查：目标宠物已召唤，跳过重复切换；Territory={this.clientState.TerritoryType}，" +
+                $"ItemId={plan.EntryPetItemId}");
+            return false;
+        }
+
+        // A previous request may have been rejected, but the desired pet can still become
+        // active through the user's own action or another plugin. Read the current state
+        // before honoring the retry backoff.
+        if (now < this.entryPetRetryAt)
+        {
+            this.nextActionAt = this.entryPetRetryAt;
+            return true;
+        }
+
+        // A successful action may take a few frames to update CurrentMinionId. Keep polling
+        // that value during the action deadline; only the accepted action gets a wait.
+        if (this.entryPetSummonedTerritory == this.clientState.TerritoryType)
+        {
+            if (now < this.companionActionDeadline)
+            {
+                this.statusReason = "等待地图预设宠物状态刷新";
+                this.nextActionAt = now.AddMilliseconds(100);
+                return true;
+            }
+
+            this.entryPetSummonedTerritory = null;
         }
 
         int itemCount = this.inventoryCounter.Count(plan.EntryPetItemId);
@@ -1985,7 +2214,8 @@ public sealed unsafe class FateAutomationController : IDisposable
                 DiagnosticSeverity.Information,
                 $"已确保地图进入宠物生效：ItemId={plan.EntryPetItemId}，{this.companion.LastActionReason}");
             this.statusReason = "已召唤地图预设宠物，等待生效";
-            this.nextActionAt = now.AddSeconds(1);
+            this.companionActionDeadline = now.AddSeconds(1);
+            this.nextActionAt = now.AddMilliseconds(100);
             return true;
         }
 
@@ -2200,7 +2430,10 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (target is null)
         {
             this.TryMountWhileIdle(now);
-            this.statusReason = "当前没有可用的 FATE";
+            StopCondition? noFates = this.GetCurrentPresetStopConditions().FirstOrDefault(stop => stop.Kind == StopConditionKind.NoFates);
+            this.statusReason = noFates is not null && this.fates.IsAvailable && this.fates.Snapshot.Count == 0
+                ? $"当前地图无 FATE：{this.noFateStopTimer.ElapsedSeconds}/{noFates.RequiredProgress} 秒"
+                : "当前没有可用的 FATE";
             this.nextActionAt = now.AddSeconds(1);
             return;
         }
@@ -2351,6 +2584,10 @@ public sealed unsafe class FateAutomationController : IDisposable
     private void SelectFate(FateSnapshot fate, string reason)
     {
         this.StopNavigationOperation();
+        this.landingRecoveryAttempts = 0;
+        this.landingRecoveryDestination = null;
+        this.mapReentryTerritory = null;
+        this.mapReentryTeleportRequired = false;
         this.idleFlightRaised = false;
         this.idleFlightDiagnosticAt = DateTime.MinValue;
         this.landing.StopDescending();
@@ -2374,26 +2611,17 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.preparationTargetObjectId = null;
         this.fateParticipationSince = DateTime.MinValue;
         this.fallbackLandingForParticipation = false;
-        this.completedProgressObservedAt = DateTime.MinValue;
         this.activeFateParticipationObserved = false;
-        this.terminalFateObservedAt = DateTime.MinValue;
-        this.terminalFateState = null;
-        this.pullTargetId = null;
-        this.killTargetId = null;
-        this.lostPriorityTargetId = null;
-        this.lostPriorityTargetKind = null;
+        this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
         this.bossCleanupFateId = null;
-        this.bossCleanupTargetId = null;
+        this.combatTargets.BossCleanupTargetId = null;
         this.bossCleanupNoTargetSince = DateTime.MinValue;
         this.bossCancelSyncStartedAt = DateTime.MinValue;
         this.bossEnvironmentLogAt = DateTime.MinValue;
         this.bossPreCombatCleanupChecked = false;
         this.ResetPullBatch();
-        this.escortFollowLastRequestAt = DateTime.MinValue;
-        this.escortFollowLastPosition = null;
+        this.combatMovement.ResetEscort();
         this.recoveryAttempts = 0;
         this.levelSyncAttempts = 0;
         this.navigationRecoveryAttempts = 0;
@@ -2467,6 +2695,8 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.navigationOnlyFateId = null;
         this.ResetCurrentActivity();
         this.configuration.Enabled = false;
+        this.fateCompletions.Stop();
+        this.PublishFateRewardContext();
         this.Transition(
             AutomationState.Stopped,
             completedFateId is { } id ? $"仅导航已到达 FATE #{id}：{reason}" : $"仅导航已完成：{reason}");
@@ -2487,12 +2717,22 @@ public sealed unsafe class FateAutomationController : IDisposable
             && firstTarget != 0
             ? firstTarget
             : null;
+        if (this.temporaryTerritoryOverridden)
+        {
+            this.configuration.SingleMapTerritoryId = this.temporaryPreviousSingleMapTerritoryId;
+            this.configuration.SingleMapAetheryteId = 0;
+            this.ClearCurrentMapTerritory();
+        }
         this.configuration.Enabled = restoreEnabled && this.temporaryPreviousEnabled;
         this.AddDiagnostic(
             DiagnosticSeverity.Information,
             $"临时目标已结束（{reason}），恢复模式={this.configuration.Mode}，目标 FATE={this.configuration.TargetFateId?.ToString() ?? "无"}，原运行状态={this.configuration.Enabled}");
         this.temporaryTargetActive = false;
         this.temporaryTargetFateId = 0;
+        this.temporaryTargetRequiredCount = 1;
+        this.temporaryTargetCompletedCount = 0;
+        this.temporaryPreviousSingleMapTerritoryId = 0;
+        this.temporaryTerritoryOverridden = false;
         this.temporaryPreviousTargetFateId = null;
         this.temporaryPreviousTargetFateIds.Clear();
     }
@@ -2520,6 +2760,8 @@ public sealed unsafe class FateAutomationController : IDisposable
     private void TryPreemptForTargetFate()
     {
         if (this.navigationOnlyRequested
+            || this.mapReentryTerritory is not null
+            || this.state == AutomationState.RepositioningForLanding
             || this.pendingFateResult is not null
             || this.state is AutomationState.CleaningUpCombat or AutomationState.ResettingAggroViaDuty
             || (this.activeFateId is null && this.state != AutomationState.ScanningFates))
@@ -2556,7 +2798,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.BeginCombatCleanup(
                 CleanupContinuation.PreemptTravel,
                 "指定 FATE 已出现；停止当前接战并立即跑离，再前往指定目标");
-            this.cleanupEscapeOrigin = previousFatePosition;
+            this.combatMovement.EscapeOrigin = previousFatePosition;
         }
     }
 
@@ -2690,9 +2932,9 @@ public sealed unsafe class FateAutomationController : IDisposable
                     : "TextAdvance 不可用，FATE 开启 NPC 将使用原生对话推进");
         }
 
-        if (now - this.preparationStartedAt > TimeSpan.FromSeconds(90))
+        if (now - this.preparationStartedAt > FatePreparationTimeout)
         {
-            this.FailRecoverableAction($"FATE #{fate.FateId} 90 秒内未能完成 NPC 开启对话", this.IsRequiredFate(fate.FateId));
+            this.FailRecoverableAction($"FATE #{fate.FateId} {FatePreparationTimeout.TotalSeconds:0} 秒内未能完成 NPC 开启对话", this.IsRequiredFate(fate.FateId));
             return;
         }
 
@@ -2977,10 +3219,10 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        if (preparing && now - this.preparationStartedAt > TimeSpan.FromSeconds(90))
+        if (preparing && now - this.preparationStartedAt > FatePreparationTimeout)
         {
             this.FailRecoverableAction(
-                $"FATE #{fate.FateId} 90 秒内未能抵达并加载开启 NPC",
+                $"FATE #{fate.FateId} {FatePreparationTimeout.TotalSeconds:0} 秒内未能抵达并加载开启 NPC",
                 this.IsRequiredFate(fate.FateId));
             return;
         }
@@ -3134,14 +3376,14 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         if (now - this.stateEnteredAt >= LandingTimeout)
         {
-            this.StopNavigationOperation();
-            this.landing.StopDescending();
-            this.FailRecoverableAction("进入 FATE 范围后 18 秒仍未落地", this.IsRequiredFate(fate.FateId));
+            this.HandleLandingFailure(fate, "进入 FATE 范围后 12 秒仍未落地");
             return;
         }
         if (this.BeginStableLanding(now, "FATE 落地") != LandingStatus.Landed)
             return;
         this.StopNavigationOperation();
+        this.landingRecoveryAttempts = 0;
+        this.landingRecoveryDestination = null;
         if (this.preparingGroundArrivalPending)
         {
             this.Transition(
@@ -3241,6 +3483,126 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.nextActionAt = now.AddMilliseconds(250);
     }
 
+    private void HandleLandingFailure(FateSnapshot fate, string reason)
+    {
+        this.StopNavigationOperation();
+        this.vnavmesh.Stop();
+        this.travelSession.Landing.Reset();
+        this.ClearTarget();
+        this.landingRecoveryDestination = null;
+        this.landingRecoveryAttempts++;
+        if (this.landingRecoveryAttempts > this.configuration.MaxRecoveryAttempts)
+        {
+            this.RecordFateFailure(fate, "落地失败", reason, applyCooldown: false);
+            this.BeginMapReentry($"FATE #{fate.FateId} 落地恢复次数耗尽：{reason}");
+            return;
+        }
+
+        this.Transition(AutomationState.RepositioningForLanding,
+            $"{reason}；换位置落地（恢复 {this.landingRecoveryAttempts}/{this.configuration.MaxRecoveryAttempts}）",
+            DiagnosticSeverity.Warning);
+        this.nextActionAt = DateTime.MinValue;
+    }
+
+    private void HandleLandingReposition(DateTime now)
+    {
+        FateSnapshot? fate = this.ResolveActiveFate();
+        IPlayerCharacter? player = this.objectTable.LocalPlayer;
+        if (fate is null || player is null)
+        {
+            this.AbandonActiveFate("更换落地点时 FATE 或玩家对象失效");
+            return;
+        }
+        if (!this.mount.IsInFlight)
+        {
+            this.StopNavigationOperation();
+            this.travelSession.Landing.Reset();
+            this.Transition(AutomationState.LandingForFate, "更换落地点期间已落地，确认地面稳定");
+            return;
+        }
+        if (now - this.stateEnteredAt >= TimeSpan.FromSeconds(20))
+        {
+            this.HandleLandingFailure(fate, "20 秒内未能移至新的落地点");
+            return;
+        }
+        if (!this.vnavmesh.IsAvailable)
+        {
+            this.statusReason = "换落地点等待 vnavmesh 恢复";
+            this.nextActionAt = now.AddMilliseconds(500);
+            return;
+        }
+        if (this.landingRecoveryDestination is null)
+        {
+            foreach (Vector3 candidate in LandingRecoveryPolicy.GetCandidates(
+                         player.Position, fate.Position, fate.Radius, this.landingRecoveryAttempts))
+            {
+                Vector3? point = this.vnavmesh.FindNearestReachablePoint(candidate, 3f, 120f);
+                if (point is not { } resolved || !LandingRecoveryPolicy.IsUsable(resolved, player.Position, fate.Position, fate.Radius))
+                    continue;
+                this.landingRecoveryDestination = resolved;
+                this.AddDiagnostic(DiagnosticSeverity.Information,
+                    $"更换落地点：平面候选={candidate}，可行地面={resolved}，水平偏移={HorizontalDistance(player.Position, resolved):0.0}，距FATE中心={HorizontalDistance(fate.Position, resolved):0.0}");
+                break;
+            }
+            if (this.landingRecoveryDestination is null)
+            {
+                this.HandleLandingFailure(fate, "范围内未找到与当前位置相隔足够距离的可行落地点");
+                this.nextActionAt = now.AddMilliseconds(500);
+                return;
+            }
+        }
+
+        Vector3 destination = this.landingRecoveryDestination.Value;
+        if (Vector3.DistanceSquared(player.Position, destination) <= 9f)
+        {
+            this.StopNavigationOperation();
+            this.travelSession.Landing.BeginVerticalDescent();
+            this.Transition(AutomationState.LandingForFate, "已移至新的可行落地点，重新下降并确认落地");
+            return;
+        }
+        if (this.travelSessionActive)
+        {
+            NavigationTravelUpdate update = this.TickTravelSession(now, destination, () => false);
+            if (update.Outcome == NavigationTravelOutcome.Failed || update.RequestResult == NavigationRequestResult.Rejected)
+            {
+                this.HandleLandingFailure(fate, $"更换落地点导航失败：{update.Reason}");
+                return;
+            }
+        }
+        NavigationRequestResult result = this.TryIssueNavigationRequest(now, NavigationPurpose.LandingRecovery, destination, fly: true);
+        if (result == NavigationRequestResult.Rejected)
+        {
+            this.HandleLandingFailure(fate, "vnavmesh 拒绝更换落地点导航");
+            return;
+        }
+        this.statusReason = "移至 FATE 范围内新的地面可行点，再次尝试落地";
+        this.nextActionAt = now.AddMilliseconds(100);
+    }
+
+    private void BeginMapReentry(string reason)
+    {
+        uint territory = this.clientState.TerritoryType;
+        this.GetCurrentPlan(); // Preserve a current-map plan before activity state is cleared.
+        this.CancelOwnedActions();
+        this.ResetCurrentActivity();
+        this.ClearTarget();
+        this.teleportArrival.CancelRequest();
+        this.mapReentryTerritory = territory;
+        this.mapReentryTeleportRequired = true;
+        this.startupFateRangeSelectionPending = false;
+        this.startupGroundCheckPending = false;
+        this.mapArrivalCheckPending = false;
+        this.teleportIssuedByUs = false;
+        this.teleportBusyObserved = false;
+        this.navigationRecoveryTeleportIssued = false;
+        this.navigationRecoveryAttempts = 0;
+        this.navigationRecoveryStartedAt = DateTime.MinValue;
+        this.AddDiagnostic(DiagnosticSeverity.Warning,
+            $"{reason}；重新执行地图 {territory} 的传送路线，进图后重新选择 FATE");
+        this.Transition(AutomationState.ValidatingPlan, "重新传送到当前地图并重新选择 FATE", DiagnosticSeverity.Warning);
+        this.nextActionAt = DateTime.MinValue;
+    }
+
     private void CheckNavigationProgress(
         DateTime now,
         float distance,
@@ -3281,7 +3643,9 @@ public sealed unsafe class FateAutomationController : IDisposable
             && this.travelGroundKind == groundKind
             && this.travelHorizontal == horizontalProgress
             && Vector3.DistanceSquared(this.travelDestination, destination) <= 1f;
-        if (same && this.travelSession.IsActive)
+        // A completed combat approach stays completed until the caller stops it or changes target.
+        if (same && (this.travelSession.IsActive
+            || purpose == NavigationPurpose.PullTarget && this.travelSession.State == NavigationTravelState.Completed))
             return;
 
         this.EndTravelSession();
@@ -3303,6 +3667,10 @@ public sealed unsafe class FateAutomationController : IDisposable
                 GroundKind = groundKind,
                 HorizontalProgress = horizontalProgress,
                 StallTimeout = TimeSpan.FromSeconds(this.configuration.NavigationStuckSeconds),
+                LandingTimeout = LandingTimeout,
+                NoFlyLandingPoint = zone?.LandingPoint,
+                LandingApproach = purpose == NavigationPurpose.LandingRecovery,
+                AllowFlightRecovery = purpose is not NavigationPurpose.ReturnToFate and not NavigationPurpose.PreSyncPosition,
             });
         this.travelSessionActive = true;
         this.nextTravelSnapshotAt = DateTime.MinValue;
@@ -3345,7 +3713,8 @@ public sealed unsafe class FateAutomationController : IDisposable
             Vector3.Distance(player.Position, destination),
             arrivedNow,
             zone is not null,
-            flight));
+            flight,
+            zone?.LandingPoint));
 
         if (now >= this.nextTravelSnapshotAt)
         {
@@ -3390,6 +3759,11 @@ public sealed unsafe class FateAutomationController : IDisposable
             $"导航会话失败：purpose={this.travelPurpose}，stage={update.FailureStage}，"
             + $"rejection={update.Rejection}，target={targetPosition}，reason={update.Reason}");
         this.EndTravelSession();
+        if (update.FailureStage == NavigationFailureStage.LandingTimeout)
+        {
+            this.HandleLandingFailure(fate, update.Reason);
+            return;
+        }
         this.BeginNavigationRecovery(now, fate, update.Reason + $"，目标={targetPosition}，水平判定={horizontal}");
     }
 
@@ -3400,6 +3774,12 @@ public sealed unsafe class FateAutomationController : IDisposable
         bool fly,
         bool mapWaypoint = false)
     {
+        // Follow the original approach point, not every position update from a moving actor.
+        // Target changes and combat interruptions already stop the old travel session.
+        if (purpose == NavigationPurpose.PullTarget
+            && this.travelSessionActive && this.travelPurpose == purpose)
+            destination = this.travelDestination;
+
         GroundDestinationKind groundKind = purpose switch
         {
             NavigationPurpose.TravelToFate => mapWaypoint
@@ -3423,6 +3803,11 @@ public sealed unsafe class FateAutomationController : IDisposable
         NavigationTravelUpdate update = this.TickTravelSession(now, destination, () => false);
         if (update.Outcome == NavigationTravelOutcome.Failed)
         {
+            if (update.FailureStage == NavigationFailureStage.LandingTimeout && this.ResolveActiveFate() is { } fate)
+            {
+                this.HandleLandingFailure(fate, update.Reason);
+                return NavigationRequestResult.NotDue;
+            }
             this.AddDiagnostic(
                 DiagnosticSeverity.Warning,
                 $"导航请求失败：purpose={purpose}，原始目标={destination}，原因={update.Reason}");
@@ -3463,9 +3848,8 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        // A normal navigation stall gets one map-crystal recovery only. If navigation still
-        // fails after returning to that crystal, repeating the same teleport cannot improve the
-        // route and only causes an unnecessary loop.
+        // Retry this FATE once from the map crystal. Further failure reenters the map and
+        // discards the old selection so the next candidate is scored from the arrival point.
         if (this.navigationRecoveryAttempts > 0)
         {
             this.SkipNavigationFate(fate, $"地图水晶恢复后仍无法导航：{reason}");
@@ -3575,14 +3959,8 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void SkipNavigationFate(FateSnapshot fate, string reason)
     {
-        this.StopNavigationOperation();
-        this.skippedFates[fate.FateId] = DateTime.UtcNow.AddSeconds(60);
-        this.RecordFateFailure(fate, "寻路失败", reason);
-        string message = $"普通 FATE #{fate.FateId}「{fate.Name}」导航恢复耗尽，已跳过 60 秒：{reason}";
-        this.chat.Print(message, "AutoFatre");
-        this.PlaySoundAlert("普通 FATE 导航恢复耗尽");
-        this.AddDiagnostic(DiagnosticSeverity.Warning, message);
-        this.AbandonActiveFate(message);
+        this.RecordFateFailure(fate, "寻路失败", reason, applyCooldown: false);
+        this.BeginMapReentry($"FATE #{fate.FateId} 导航恢复耗尽：{reason}");
     }
 
     private void HandleLevelSync(DateTime now)
@@ -3591,6 +3969,16 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (fate is null)
         {
             this.AbandonActiveFate("同步前目标 FATE 已失效");
+            return;
+        }
+
+        // A lost native FATE context during participation is an area recovery, even while
+        // enemies still have aggro. Never route it through mounting and post-FATE cleanup.
+        if (!IsPlayerInFate(fate.FateId)
+            && !this.mount.IsMounted && !this.mount.IsInFlight && !this.mount.IsMountTransition
+            && (this.activeFateParticipationObserved || this.IsCombatEngaged()))
+        {
+            this.BeginReturnToFateArea("等级同步前已离开当前 FATE，先地面返回安全范围");
             return;
         }
 
@@ -3625,18 +4013,33 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (this.TryBeginBossPreSyncCleanup(now, fate))
             return;
 
+        // Cleanup has priority: only stage after it has completed, before any sync request
+        // or the already-synced/no-sync-needed transition into BossFighting.
+        if (this.EnsureValleyPreSyncPosition(now, fate))
+            return;
+
         byte syncCap = fate.MaxLevel > 0 ? fate.MaxLevel : fate.Level;
         bool required = this.playerState.Level > syncCap;
         bool syncedToCurrentFate = this.playerState.IsLevelSynced && this.levelSync.IsSyncedTo(fate.FateId);
         if (!required || syncedToCurrentFate)
         {
             string syncResult = required ? "等级同步成功" : "当前等级无需同步";
+            if (this.returnAreaResumeState is { } resumeState)
+            {
+                this.returnAreaResumeState = null;
+                this.Transition(resumeState, $"{syncResult}，位置回正完成，恢复原流程");
+                this.nextActionAt = now;
+                return;
+            }
+
             switch (fate.CombatProfile.Strategy)
             {
                 case FateCombatStrategyKind.General when fate.IsAutomationSupported:
                     this.Transition(
-                        AutomationState.PullingTargets,
-                        $"{syncResult}，进入通用战斗模式（上限 {this.configuration.MaxAggroCount}）");
+                        this.combatTargets.PullBatch.MustDrain ? AutomationState.Fighting : AutomationState.PullingTargets,
+                        this.combatTargets.PullBatch.MustDrain
+                            ? $"{syncResult}，继续清空距离限制触发前的接战批次"
+                            : $"{syncResult}，进入通用战斗模式（上限 {this.CurrentMaxAggroCount}）");
                     return;
                 case FateCombatStrategyKind.Boss when fate.IsAutomationSupported:
                     this.Transition(AutomationState.BossFighting, $"{syncResult}，进入独立的讨伐BOSS处理器");
@@ -3678,6 +4081,97 @@ public sealed unsafe class FateAutomationController : IDisposable
             ? $"等待等级同步生效（{this.levelSyncAttempts}/5）"
             : $"等待等级同步按钮出现（{this.levelSyncAttempts}/5）";
         this.nextActionAt = now.AddSeconds(1);
+    }
+
+    /// <returns>True while the fixed staging point blocks sync and combat entry.</returns>
+    private bool EnsureValleyPreSyncPosition(DateTime now, FateSnapshot fate)
+    {
+        if (!ValleyApothecaryPreSync.AppliesTo(fate.FateId, this.clientState.TerritoryType, this.CurrentClassJobRole))
+        {
+            if (this.travelSessionActive && this.travelPurpose == NavigationPurpose.PreSyncPosition)
+                this.StopNavigationOperation();
+            this.preSyncPosition = null;
+            return false;
+        }
+        IPlayerCharacter? player = this.objectTable.LocalPlayer;
+        if (player is null)
+            return true;
+        this.ClearTarget();
+        if (now - this.stateEnteredAt >= TimeSpan.FromSeconds(30))
+        {
+            this.StopNavigationOperation();
+            this.FailRecoverableAction("幽谷药师同步前 30 秒内未抵达东部林区 (32.0, 14.0)，不执行同步", this.IsRequiredFate(fate.FateId));
+            return true;
+        }
+        if (this.IsBetweenAreas() || this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87])
+        {
+            this.StopNavigationOperation();
+            this.statusReason = "幽谷药师：等待切图或读条结束，再前往同步前站位";
+            this.nextActionAt = now.AddMilliseconds(250);
+            return true;
+        }
+        if (!this.vnavmesh.IsAvailable)
+        {
+            this.StopNavigationOperation();
+            this.statusReason = "幽谷药师：等待 vnavmesh 恢复后前往同步前站位";
+            this.nextActionAt = now.AddMilliseconds(500);
+            return true;
+        }
+        if (this.preSyncPosition is null)
+        {
+            Map? map = this.dataManager.GetExcelSheet<Map>()?.GetRowOrDefault(ValleyApothecaryPreSync.MapId);
+            if (map is not { SizeFactor: > 0 })
+            {
+                this.StopNavigationOperation();
+                this.FailRecoverableAction("幽谷药师同步前无法读取东部林区地图数据", this.IsRequiredFate(fate.FateId));
+                return true;
+            }
+            Vector3 waypoint = ValleyApothecaryPreSync.GetWaypoint(map.Value.SizeFactor, map.Value.OffsetX, map.Value.OffsetY);
+            if (!ValleyApothecaryPreSync.TryResolveGround(waypoint, player.Position.Y,
+                    this.vnavmesh.FindNearestReachablePoint, out Vector3? ground) || ground is null)
+            {
+                this.statusReason = "幽谷药师：指定站位附近未找到可站立地面，禁止同步";
+                if (now >= this.preSyncDiagnosticAt)
+                {
+                    this.AddDiagnostic(DiagnosticSeverity.Warning,
+                        $"幽谷药师同步前站位解析失败：地图坐标=(32.0, 14.0)，Map={map.Value.RowId}，" +
+                        $"SizeFactor={map.Value.SizeFactor}，Offset=({map.Value.OffsetX}, {map.Value.OffsetY})，" +
+                        $"世界坐标={waypoint}，玩家高度={player.Position.Y:0.00}，" +
+                        $"NearestPointReachable={ground?.ToString() ?? "无返回点"}，" +
+                        $"允许水平偏移={ValleyApothecaryPreSync.GroundSearchRadius:0.0}码");
+                    this.preSyncDiagnosticAt = now.AddSeconds(2);
+                }
+                this.nextActionAt = now.AddMilliseconds(500);
+                return true;
+            }
+            this.preSyncPosition = ground.Value;
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"幽谷药师同步前站位：东部林区 (32.0, 14.0)，地图换算={waypoint}，地面目标={ground}，解析=NearestPointReachable（玩家高度，水平3码）");
+        }
+        Vector3 destination = this.preSyncPosition.Value;
+        if (ValleyApothecaryPreSync.HasArrived(player.Position, destination))
+        {
+            bool wasNavigating = this.travelSessionActive && this.travelPurpose == NavigationPurpose.PreSyncPosition;
+            this.StopNavigationOperation();
+            if (wasNavigating)
+                this.AddDiagnostic(DiagnosticSeverity.Information,
+                    $"幽谷药师已抵达同步前站位 (32.0, 14.0)，当前位置={player.Position}，继续等级同步");
+            return false;
+        }
+        this.StartTravelSession(now, NavigationPurpose.PreSyncPosition, destination, fly: false,
+            GroundDestinationKind.Raw, horizontalProgress: false, context: "幽谷药师同步前固定站位");
+        NavigationTravelUpdate update = this.TickTravelSession(now, destination,
+            () => ValleyApothecaryPreSync.HasArrived(player.Position, destination));
+        if (update.Outcome == NavigationTravelOutcome.Failed || update.RequestResult == NavigationRequestResult.Rejected)
+        {
+            this.StopNavigationOperation();
+            this.FailRecoverableAction($"幽谷药师同步前站位导航失败：{update.Reason}，不执行同步", this.IsRequiredFate(fate.FateId));
+            return true;
+        }
+        // A terminal nav state alone must not authorize sync; verify actual position next tick.
+        this.statusReason = "幽谷药师：先步行至东部林区 (32.0, 14.0)，到达后才同步战斗";
+        this.nextActionAt = now.AddMilliseconds(250);
+        return true;
     }
 
     private bool TryBeginBossPreSyncCleanup(DateTime now, FateSnapshot fate)
@@ -3750,6 +4244,12 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private bool EnsureLevelSyncBeforeCombat(DateTime now, FateSnapshot fate, string context)
     {
+        if (!IsPlayerInFate(fate.FateId))
+        {
+            this.BeginReturnToFateArea($"{context}检测到已离开 FATE #{fate.FateId}，先地面返回再同步");
+            return true;
+        }
+
         byte syncCap = this.GetFateLevel(fate);
         if (this.playerState.Level <= syncCap)
             return false;
@@ -3757,15 +4257,12 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (this.playerState.IsLevelSynced && this.levelSync.IsSyncedTo(fate.FateId))
             return false;
 
+        this.StopNavigationOperation();
         this.ClearTarget();
-        this.pullTargetId = null;
-        this.killTargetId = null;
-        this.lostPriorityTargetId = null;
-        this.lostPriorityTargetKind = null;
+        this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
-        this.ResetPullBatch();
+        this.ResetPullApproach();
+        this.pullBatchEmptySince = DateTime.MinValue;
         this.levelSyncAttempts = 0;
         this.Transition(
             AutomationState.WaitingForLevelSync,
@@ -3821,6 +4318,17 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (fate is null || player is null || this.collectionFateId != fate.FateId)
         {
             this.AbandonActiveFate("收集流程中的 FATE 或玩家对象失效");
+            return;
+        }
+
+        IReadOnlyList<IBattleNpc> related = this.targetSelector.FindAllFateObjects(fate.FateId, player.Position);
+        IBattleNpc[] nearbyEnemies = CombatTargetSelection.GetInRangeEnemies(
+            CombatTargetSelection.GetAllEnemies(related), fate);
+        if (this.TryHandleLostPriorityTarget(now, fate, player, related, nearbyEnemies))
+        {
+            this.collectionCombatFallback = true;
+            this.collectionObjectId = null;
+            this.Transition(AutomationState.PullingTargets, "收集 FATE 发现优先迷失目标，立即转入战斗");
             return;
         }
 
@@ -4577,7 +5085,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             $"收集交付完成：{reason}；当前进度={fate.Progress}%；下一轮门槛={GetCollectionTurnInThreshold(fate)}");
 
         // The final hand-in can itself push the bar to 100%. Once our EventItem count is gone,
-        // release the turn-in latch immediately so the normal one-second completion confirmation
+        // release the turn-in latch immediately so the normal state-based completion cleanup
         // begins; do not sit in the game's one-minute courtesy window.
         if (fate.Progress >= 100)
         {
@@ -4660,6 +5168,18 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
 
         FateCombatProfile profile = fate.CombatProfile;
+        if (this.EnsureLevelSyncBeforeCombat(now, fate, "通用战斗选目标前"))
+            return;
+
+        IReadOnlyList<IBattleNpc> related = this.targetSelector.FindAllFateObjects(fate.FateId, player.Position);
+        IBattleNpc[] nearbyEnemies = CombatTargetSelection.GetInRangeEnemies(
+            CombatTargetSelection.GetAllEnemies(related), fate);
+
+        // This is the common entry point for ordinary, defense, escort, and collection-fallback
+        // combat. Priority targets must be checked before any strategy-specific selector.
+        if (this.TryHandleLostPriorityTarget(now, fate, player, related, nearbyEnemies))
+            return;
+
         if (profile.Strategy == FateCombatStrategyKind.Collection
             && this.collectionCombatFallback
             && !this.condition[ConditionFlag.InCombat]
@@ -4693,31 +5213,11 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        IReadOnlyList<IBattleNpc> related = this.targetSelector.FindAllFateObjects(fate.FateId, player.Position);
         IBattleNpc[] protectedTargets = profile.ProtectionMode == FateProtectionMode.None
             ? []
-            : related
-                .Where(FateTargetSelector.IsFriendly)
-                .OrderBy(candidate => candidate.CurrentHp)
-                .ThenBy(candidate => Vector3.DistanceSquared(player.Position, candidate.Position))
-                .ToArray();
-        Vector3? safetyAnchor = profile.ProtectionMode == FateProtectionMode.Moving
-            ? protectedTargets.FirstOrDefault()?.Position
-            : null;
-        if (safetyAnchor is { } movingAnchor)
-            this.escortFollowLastPosition = movingAnchor;
-        if (this.ReturnToFateIfOutside(fate, player, now, safetyAnchor))
-            return;
-
-        if (this.EnsureLevelSyncBeforeCombat(now, fate, "通用战斗选目标前"))
-            return;
-
-        IBattleNpc[] nearbyEnemies = related
-            .Where(FateTargetSelector.IsAttackableEnemy)
-            .Where(enemy => this.IsInsideFateCombatRange(enemy, fate))
-            .ToArray();
-        if (this.TryHandleLostPriorityTarget(now, fate, player, related, nearbyEnemies))
-            return;
+            : CombatTargetSelection.GetProtectedTargets(related, player.Position);
+        if (profile.ProtectionMode == FateProtectionMode.Moving && protectedTargets.FirstOrDefault() is { } escort)
+            this.combatMovement.RememberEscortPosition(escort.Position);
 
         if (this.TryHandleDestroyObjectiveCombat(now, fate, player))
             return;
@@ -4737,27 +5237,9 @@ public sealed unsafe class FateAutomationController : IDisposable
             || entry.Targets.Destroy.Count == 0)
             return false;
 
-        IBattleNpc[] objectives = this.targetSelector.FindNamedPriorityTargets(
-            fate.FateId, player.Position, entry.Targets.Destroy).ToArray();
-        // Temporary targetability/classification changes must not replace a living lock.
-        if (this.destroySession.TargetId is { } objectiveId
-            && this.targetSelector.FindLiveTarget(objectiveId) is { } lockedObjective
-            && FateTargetSelector.BelongsToFate(lockedObjective, fate.FateId)
-            && !FateTargetSelector.IsFriendly(lockedObjective))
-            objectives = objectives.Append(lockedObjective).DistinctBy(t => t.GameObjectId).ToArray();
-        IBattleNpc[] engaged = this.targetSelector.FindEngagedTargets(player)
-            .Concat(this.targetSelector.FindAllFateObjects(fate.FateId, player.Position)
-                .Where(t => this.pullBatchTargets.Contains(t.GameObjectId)
-                    && this.targetSelector.IsAttackableCleanupTarget(t)))
-            .DistinctBy(t => t.GameObjectId).ToArray();
-        if (this.destroySession.ClearingAggro && this.destroySession.CleanupTargetId is { } cleanupId
-            && this.targetSelector.FindLiveTarget(cleanupId) is { } lockedCleanup
-            && this.targetSelector.IsAttackableCleanupTarget(lockedCleanup))
-            engaged = engaged.Append(lockedCleanup).DistinctBy(t => t.GameObjectId).ToArray();
-        this.aggroCount = engaged.Length;
-        DestroyDecision decision = this.destroySession.Choose(
-            objectives.Select(t => ToCombatCandidate(t, player)).ToArray(),
-            engaged.Select(t => ToCombatCandidate(t, player)).ToArray());
+        var selection = this.combatTargets.ChooseDestroy(this.targetSelector, fate, player, entry.Targets.Destroy);
+        this.aggroCount = selection.EngagedCount;
+        DestroyDecision decision = selection.Decision;
         if (decision.Action == DestroyAction.Fallback)
         {
             if (this.priorityDestroyTargetId is not null)
@@ -4771,34 +5253,26 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (this.EnsureLevelSyncBeforeCombat(now, fate, "破坏目标处理器"))
             return true;
 
-        IBattleNpc target = (decision.Action == DestroyAction.Destroy ? objectives : engaged)
-            .First(t => t.GameObjectId == decision.TargetId);
+        IBattleNpc target = selection.Target!;
         if (this.priorityDestroyTargetId != target.GameObjectId)
         {
             this.StopNavigationOperation();
             this.priorityDestroyTargetId = target.GameObjectId;
-            this.pullTargetId = null;
-            this.killTargetId = null;
+            this.combatTargets.PullTargetId = null;
+            this.combatTargets.KillTargetId = null;
             this.AddDiagnostic(DiagnosticSeverity.Information,
                 decision.Action == DestroyAction.Destroy
                     ? $"破坏目标锁定 → {target.Name} ({target.GameObjectId:X})，死亡或消失前不切换"
-                    : $"破坏后清场锁定 → {target.Name} ({target.GameObjectId:X})，HP={target.CurrentHp}，接战剩余={engaged.Length}；持续清至名单为空");
+                    : $"破坏后清场锁定 → {target.Name} ({target.GameObjectId:X})，HP={target.CurrentHp}，接战剩余={selection.EngagedCount}；持续清至名单为空");
         }
-        if (!this.TrySelectCombatTarget(target, now))
+        if (!this.ApproachAndSelectTarget(target, player, now, alreadyEngaged: decision.Action == DestroyAction.Cleanup))
             return true;
-        if (Vector3.Distance(player.Position, target.Position) > 14f)
-            this.RequestPullMovement(target.Position, now);
-        else
-            this.StopNavigationOperation();
         this.statusReason = decision.Action == DestroyAction.Destroy
             ? $"破坏目标：专注攻击 {target.Name}，HP {target.CurrentHp}/{target.MaxHp}"
-            : $"破坏后清场：锁定 {target.Name}，接战剩余 {engaged.Length}，清空后恢复破坏目标";
+            : $"破坏后清场：锁定 {target.Name}，接战剩余 {selection.EngagedCount}，清空后恢复破坏目标";
         this.nextActionAt = now.AddMilliseconds(250);
         return true;
     }
-
-    private static CombatCandidate ToCombatCandidate(IBattleNpc target, IPlayerCharacter player) =>
-        new(target.GameObjectId, target.CurrentHp, Vector3.DistanceSquared(player.Position, target.Position));
 
     private void HandleGeneralCombat(
         DateTime now,
@@ -4808,65 +5282,91 @@ public sealed unsafe class FateAutomationController : IDisposable
         IReadOnlyList<IBattleNpc> related,
         IReadOnlyList<IBattleNpc> protectedTargets)
     {
-        IBattleNpc[] allEnemies = related.Where(FateTargetSelector.IsAttackableEnemy).ToArray();
-        IBattleNpc[] enemies = allEnemies
-            .Where(enemy => this.IsInsideFateCombatRange(enemy, fate))
-            .ToArray();
+        IBattleNpc[] allEnemies = CombatTargetSelection.GetAllEnemies(related);
+        IBattleNpc[] enemies = CombatTargetSelection.GetInRangeEnemies(allEnemies, fate);
         this.LogOutOfRangeFateTargets(now, fate, allEnemies, enemies);
-        HashSet<ulong> liveEnemyIds = enemies.Select(enemy => enemy.GameObjectId).ToHashSet();
-        this.pullBatchTargets.RemoveWhere(id => !liveEnemyIds.Contains(id));
         HashSet<ulong> protectedIds = protectedTargets.Select(target => target.GameObjectId).ToHashSet();
+        IBattleNpc[] nonFateAggroTargets = this.targetSelector
+            .FindTargetsAggroedOnPlayer(player)
+            .Where(target => !FateTargetSelector.BelongsToFate(target, fate.FateId))
+            .ToArray();
+        IBattleNpc[] activeCombatTargets = this.combatTargets.GetActiveTargets(
+            allEnemies, nonFateAggroTargets, player.GameObjectId);
+        this.aggroCount = activeCombatTargets.Length;
 
-        if (this.TryHandleLostPriorityTarget(now, fate, player, related, enemies))
-            return;
-
-        if (this.targetSelectionFailedAt != DateTime.MinValue
-            && this.selectingTargetId is { } selecting
-            && (this.pullTargetId == selecting || this.killTargetId == selecting)
-            && this.targetSelector.FindLiveTarget(selecting) is { } pendingSelection
-            && !this.TrySelectCombatTarget(pendingSelection, now))
-            return;
-
-        if (this.pullTargetId is { } pullingId)
+        if (this.combatTargets.PullTargetId is not null)
         {
-            IBattleNpc? pulling = enemies.FirstOrDefault(enemy => enemy.GameObjectId == pullingId);
+            IBattleNpc? pulling = this.combatTargets.GetCurrentPull(enemies, fate, player.GameObjectId);
             if (pulling is null)
             {
-                this.pullTargetId = null;
+                this.StopNavigationOperation();
+                this.ClearTarget();
+                this.combatTargets.PullTargetId = null;
                 this.ResetPullApproach();
             }
             else
             {
-                bool confirmed = this.pullTargetKind == PullTargetKind.ProtectionThreat
+                bool confirmed = this.combatTargets.PullKind == PullTargetKind.ProtectionThreat
                     ? pulling.TargetObjectId != 0 && !protectedIds.Contains(pulling.TargetObjectId)
-                    : FateTargetSelector.IsTargetingPlayer(pulling, player);
+                    : this.IsEngagedCombatTarget(pulling, player);
                 if (confirmed)
                 {
-                    this.pullBatchTargets.Add(pulling.GameObjectId);
+                    this.combatTargets.ConfirmEngaged(pulling.GameObjectId);
+                    // Engagement can happen at ranged distance, before reaching the approach point.
+                    this.combatMovement.CompleteApproach(now, pulling: true);
                     this.AddDiagnostic(
                         DiagnosticSeverity.Information,
-                        this.pullTargetKind == PullTargetKind.ProtectionThreat
+                        this.combatTargets.PullKind == PullTargetKind.ProtectionThreat
                             ? $"保护威胁 {pulling.Name} 的仇恨已离开友方 NPC（Target={pulling.TargetObjectId:X}）"
                             : $"已确认目标 {pulling.Name} 的仇恨");
-                    this.pullTargetId = null;
+                    this.combatTargets.PullTargetId = null;
                     this.ResetPullApproach();
                     this.StopNavigationOperation();
+                    // Include the just-confirmed target before deciding whether to pull again.
+                    activeCombatTargets = activeCombatTargets.Append(pulling)
+                        .DistinctBy(target => target.GameObjectId).ToArray();
+                    this.aggroCount = activeCombatTargets.Length;
                 }
-                else if (!this.condition[ConditionFlag.Casting]
-                         && !this.condition[ConditionFlag.Casting87]
-                         && now >= this.pullCastProtectionUntil
-                         && this.IsPullAttemptTimedOut(now))
+                else if (this.combatMovement.IsPullAttemptTimedOut(now,
+                             this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87]))
                 {
-                    this.skippedTargets[pulling.GameObjectId] = now.AddSeconds(this.configuration.SkippedTargetCooldownSeconds);
+                    this.combatTargets.SkipTarget(pulling.GameObjectId, now.AddSeconds(this.configuration.SkippedTargetCooldownSeconds));
                     this.AddDiagnostic(DiagnosticSeverity.Warning, $"目标 {pulling.Name} 接战确认超时，暂时跳过");
-                    this.pullTargetId = null;
+                    this.combatTargets.PullTargetId = null;
                     this.ResetPullApproach();
                     this.StopNavigationOperation();
                 }
                 else
                 {
-                    this.ApproachAndSelectTarget(pulling, player, now);
-                    this.statusReason = this.pullTargetKind == PullTargetKind.ProtectionThreat
+                    if (this.combatTargets.PullKind == PullTargetKind.Normal && activeCombatTargets.Length >= 2
+                        && Vector3.DistanceSquared(player.Position, pulling.Position) >= 25f * 25f)
+                    {
+                        IBattleNpc? nearest = this.combatTargets.ChooseOrdinaryPull(
+                            now, fate, player.Position, enemies, activeCombatTargets);
+                        if (nearest is not null && this.combatTargets.PullBatch.TrySealForDistantTarget(
+                                activeCombatTargets.Length, Vector3.DistanceSquared(player.Position, nearest.Position),
+                                isProtectionThreat: false))
+                        {
+                            this.StopNavigationOperation();
+                            this.ClearTarget();
+                            this.combatTargets.PullTargetId = null;
+                            this.ResetPullApproach();
+                            this.pullBatchEmptySince = DateTime.MinValue;
+                            this.Transition(AutomationState.Fighting,
+                                $"普通拉怪中已接战 {activeCombatTargets.Length} 只，最近剩余目标 {nearest.Name} 距离 {Vector3.Distance(player.Position, nearest.Position):0.0} 达到 25 码，先清空本批");
+                            this.SelectLockedKillTarget(now, player, activeCombatTargets);
+                            return;
+                        }
+
+                        if (nearest is not null && nearest.GameObjectId != pulling.GameObjectId)
+                        {
+                            pulling = nearest;
+                            this.BeginPullTarget(nearest.GameObjectId, now);
+                        }
+                    }
+
+                    this.ApproachAndSelectTarget(pulling, player, now, pulling: true);
+                    this.statusReason = this.combatTargets.PullKind == PullTargetKind.ProtectionThreat
                         ? $"正在转移 {pulling.Name} 对友方 NPC 的仇恨"
                         : this.statusReason;
                     return;
@@ -4874,22 +5374,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             }
         }
 
-        IBattleNpc[] activeCombatTargets = enemies
-            .Where(target => FateTargetSelector.IsTargetingPlayer(target, player)
-                             || this.pullBatchTargets.Contains(target.GameObjectId))
-            .DistinctBy(target => target.GameObjectId)
-            .ToArray();
-        IBattleNpc[] nonFateAggroTargets = this.targetSelector
-            .FindTargetsAggroedOnPlayer(player)
-            .Where(target => !FateTargetSelector.BelongsToFate(target, fate.FateId))
-            .ToArray();
-        activeCombatTargets = activeCombatTargets
-            .Concat(nonFateAggroTargets)
-            .DistinctBy(target => target.GameObjectId)
-            .ToArray();
-        this.aggroCount = activeCombatTargets.Length;
-
-        int effectiveAggroLimit = this.GetEffectiveAggroLimit(fate);
+        int effectiveAggroLimit = this.combatTargets.GetEffectiveAggroLimit(fate, this.CurrentClassJobRole);
 
         if (this.state == AutomationState.Fighting)
         {
@@ -4902,57 +5387,52 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.pullBatchEmptySince = DateTime.MinValue;
             this.Transition(
                 AutomationState.Fighting,
-                this.CanRefillAtHalf(fate)
+                this.combatTargets.CanRefillAtHalf(fate)
                     ? $"本批已达上限 {effectiveAggroLimit}，剩余不超过一半时补充"
                     : $"本批已达上限 {effectiveAggroLimit}，清空后再拉",
                 logTransition: false);
-            this.SelectLockedKillTarget(player, activeCombatTargets);
+            this.SelectLockedKillTarget(now, player, activeCombatTargets);
             return;
         }
 
-        bool IsAvailable(IBattleNpc enemy) =>
-            !activeCombatTargets.Any(active => active.GameObjectId == enemy.GameObjectId)
-            && (!this.skippedTargets.TryGetValue(enemy.GameObjectId, out DateTime until) || until <= now);
-
-        IBattleNpc? next = null;
-        PullTargetKind nextKind = PullTargetKind.Normal;
-        foreach (IBattleNpc protectedTarget in protectedTargets)
-        {
-            next = enemies
-                .Where(IsAvailable)
-                .Where(enemy => enemy.TargetObjectId == protectedTarget.GameObjectId)
-                .OrderBy(enemy => enemy.CurrentHp)
-                .ThenBy(enemy => Vector3.DistanceSquared(protectedTarget.Position, enemy.Position))
-                .FirstOrDefault();
-            if (next is null)
-                continue;
-
-            nextKind = PullTargetKind.ProtectionThreat;
-            break;
-        }
-
-        // No enemy currently threatens a protected NPC: use exactly the ordinary enemy rule.
-        next ??= enemies
-            .Where(IsAvailable)
-            .OrderBy(enemy => Vector3.DistanceSquared(player.Position, enemy.Position))
-            .FirstOrDefault();
+        PullTargetChoice nextChoice = this.combatTargets.ChoosePull(
+            now, fate, player.Position, enemies, activeCombatTargets, protectedTargets);
+        IBattleNpc? next = nextChoice.Target;
+        PullTargetKind nextKind = nextChoice.Kind;
         if (next is not null)
         {
+            // The ordinary candidate is already the nearest remaining eligible enemy.
+            // Protection-threat pulls deliberately bypass this distance rule.
+            if (this.combatTargets.PullBatch.TrySealForDistantTarget(
+                    activeCombatTargets.Length,
+                    Vector3.DistanceSquared(player.Position, next.Position),
+                    nextKind == PullTargetKind.ProtectionThreat))
+            {
+                this.StopNavigationOperation();
+                this.ClearTarget();
+                this.pullBatchEmptySince = DateTime.MinValue;
+                this.Transition(
+                    AutomationState.Fighting,
+                    $"已接战 {activeCombatTargets.Length} 只，最近剩余普通目标 {next.Name} 距离 {Vector3.Distance(player.Position, next.Position):0.0} 达到 25 码，先清空本批");
+                this.SelectLockedKillTarget(now, player, activeCombatTargets);
+                return;
+            }
+
             this.BeginPullTarget(next.GameObjectId, now, nextKind);
             string source = nextKind == PullTargetKind.ProtectionThreat ? "保护威胁" : "普通目标";
             this.Transition(AutomationState.PullingTargets, $"{source} → {next.Name} ({next.GameObjectId:X})", logTransition: false);
-            this.ApproachAndSelectTarget(next, player, now);
+            this.ApproachAndSelectTarget(next, player, now, pulling: true);
             return;
         }
 
         if (activeCombatTargets.Length > 0)
         {
             this.Transition(AutomationState.Fighting, "当前没有新的可拉取目标，先清理已接战目标", logTransition: false);
-            this.SelectLockedKillTarget(player, activeCombatTargets);
+            this.SelectLockedKillTarget(now, player, activeCombatTargets);
             return;
         }
 
-        this.killTargetId = null;
+        this.combatTargets.KillTargetId = null;
         if (profile.ProtectionMode == FateProtectionMode.Moving && enemies.Length == 0 && protectedTargets.Count > 0)
         {
             this.FollowEscortTarget(now, player, protectedTargets[0]);
@@ -4966,6 +5446,35 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.nextActionAt = now.AddMilliseconds(500);
     }
 
+    private bool TryPreemptLostPriorityTargetBeforeCompletion(DateTime now, FateSnapshot fate)
+    {
+        if (!this.configuration.PrioritizeLostGirlAndLostOne
+            || this.state is not (AutomationState.CollectingFateItems
+                or AutomationState.PullingTargets
+                or AutomationState.Fighting
+                or AutomationState.BossFighting))
+            return false;
+
+        IPlayerCharacter? player = this.objectTable.LocalPlayer;
+        if (player is null)
+            return false;
+
+        IReadOnlyList<IBattleNpc> related = this.targetSelector.FindAllFateObjects(fate.FateId, player.Position);
+        IBattleNpc[] nearbyEnemies = CombatTargetSelection.GetInRangeEnemies(
+            CombatTargetSelection.GetAllEnemies(related), fate);
+        if (!this.TryHandleLostPriorityTarget(now, fate, player, related, nearbyEnemies))
+            return false;
+
+        if (this.state == AutomationState.CollectingFateItems)
+        {
+            this.collectionCombatFallback = true;
+            this.collectionObjectId = null;
+            this.Transition(AutomationState.PullingTargets, "收集 FATE 结算前发现优先迷失目标，立即转入战斗");
+        }
+
+        return true;
+    }
+
     private bool TryHandleLostPriorityTarget(
         DateTime now,
         FateSnapshot fate,
@@ -4973,105 +5482,72 @@ public sealed unsafe class FateAutomationController : IDisposable
         IReadOnlyList<IBattleNpc> related,
         IReadOnlyList<IBattleNpc> nearbyEnemies)
     {
-        if (!this.configuration.PrioritizeLostGirlAndLostOne)
+        ulong? previousId = this.combatTargets.LostTargetId;
+        LostTargetChoice choice = this.combatTargets.ChooseLostTarget(now, fate, player.Position, related, nearbyEnemies);
+        switch (choice.Action)
         {
-            if (this.lostPriorityTargetId is { } disabledId
-                && this.targetManager.Target?.GameObjectId == disabledId)
-            {
-                this.ClearTarget();
-            }
-
-            this.lostPriorityTargetId = null;
-            this.lostPriorityTargetKind = null;
-            this.lostPriorityTargetMissingSince = DateTime.MinValue;
-            return false;
-        }
-
-        IBattleNpc? target = this.lostPriorityTargetId is { } lockedId
-            ? related.FirstOrDefault(candidate => candidate.GameObjectId == lockedId
-                && candidate.IsValid()
-                && !candidate.IsDead
-                && FateTargetSelector.BelongsToFate(candidate, fate.FateId))
-            : null;
-        if (this.lostPriorityTargetId is not null && target is null)
-        {
-            if (this.lostPriorityTargetMissingSince == DateTime.MinValue)
-                this.lostPriorityTargetMissingSince = now;
-            if (now - this.lostPriorityTargetMissingSince < TimeSpan.FromSeconds(1))
-            {
+            case LostTargetSelectionAction.Disabled:
+                if (previousId is { } disabledId)
+                {
+                    this.StopNavigationOperation();
+                    if (this.targetManager.Target?.GameObjectId == disabledId)
+                        this.ClearTarget();
+                }
+                return false;
+            case LostTargetSelectionAction.Waiting:
+                this.StopNavigationOperation();
                 this.statusReason = "等待优先击杀目标状态更新，暂不恢复普通选怪";
                 this.nextActionAt = now.AddMilliseconds(250);
                 return true;
-            }
-
-            this.AddDiagnostic(
-                DiagnosticSeverity.Information,
-                $"优先击杀目标已消失，视为已击杀：{this.lostPriorityTargetId.Value:X}");
-            if (this.targetManager.Target?.GameObjectId == this.lostPriorityTargetId)
-                this.ClearTarget();
-            this.lostPriorityTargetId = null;
-            this.lostPriorityTargetKind = null;
-            this.lostPriorityTargetMissingSince = DateTime.MinValue;
-            this.killTargetId = null;
-            this.pullTargetId = null;
-            this.ResetPullApproach();
-            return false;
-        }
-
-        if (target is null)
-        {
-            target = nearbyEnemies
-                .Select(candidate => (Target: candidate, Kind: GetLostPriorityTargetKind(candidate)))
-                .Where(candidate => candidate.Kind is { } kind
-                    && fate.TimeRemaining >= this.GetLostPriorityTargetThresholdSeconds(kind))
-                .OrderBy(candidate => Vector3.DistanceSquared(player.Position, candidate.Target.Position))
-                .Select(candidate => candidate.Target)
-                .FirstOrDefault();
-            if (target is null)
+            case LostTargetSelectionAction.Disappeared:
+                this.StopNavigationOperation();
+                this.AddDiagnostic(DiagnosticSeverity.Information,
+                    $"优先击杀目标已消失，视为已击杀：{previousId:X}");
+                if (this.targetManager.Target?.GameObjectId == previousId)
+                    this.ClearTarget();
+                this.combatTargets.KillTargetId = null;
+                this.combatTargets.PullTargetId = null;
+                this.ResetPullApproach();
                 return false;
-
-            this.lostPriorityTargetId = target.GameObjectId;
-            this.lostPriorityTargetKind = GetLostPriorityTargetKind(target);
-            this.lostPriorityTargetMissingSince = DateTime.MinValue;
-            this.AddDiagnostic(
-                DiagnosticSeverity.Information,
-                $"优先击杀目标锁定 → {target.Name} ({target.GameObjectId:X})，FATE 剩余 {fate.TimeRemaining}s");
+            case LostTargetSelectionAction.None:
+                return false;
         }
 
-        this.lostPriorityTargetMissingSince = DateTime.MinValue;
-
-        LostPriorityTargetKind kind = this.lostPriorityTargetKind
-            ?? GetLostPriorityTargetKind(target)
-            ?? LostPriorityTargetKind.LostOne;
-        bool alreadyPulling = this.pullTargetId == target.GameObjectId;
-        bool engaged = FateTargetSelector.IsTargetingPlayer(target, player)
-            || this.pullBatchTargets.Contains(target.GameObjectId);
+        IBattleNpc target = choice.Target!;
+        if (previousId != target.GameObjectId)
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"优先击杀目标锁定 → {target.Name} ({target.GameObjectId:X})，FATE 剩余 {fate.TimeRemaining}s");
+        LostPriorityTargetKind kind = this.combatTargets.LostKind
+            ?? CombatTargetSelection.GetLostKind(target) ?? LostPriorityTargetKind.LostOne;
+        bool alreadyPulling = this.combatTargets.PullTargetId == target.GameObjectId;
+        bool engaged = this.IsEngagedCombatTarget(target, player);
         if (!engaged)
         {
             if (!alreadyPulling)
             {
-                this.pullTargetId = null;
+                this.combatTargets.PullTargetId = null;
                 this.ResetPullApproach();
                 this.BeginPullTarget(target.GameObjectId, now);
             }
 
-            this.killTargetId = null;
-            this.ApproachAndSelectTarget(target, player, now);
+            this.combatTargets.KillTargetId = null;
+            this.ApproachAndSelectTarget(target, player, now, pulling: true);
             this.statusReason = $"优先接战{GetLostPriorityTargetLabel(kind)}：{target.Name}，正在接近目标";
             return true;
         }
 
-        if (this.pullTargetId is not null && this.pullTargetId != target.GameObjectId)
+        if (this.combatTargets.PullTargetId is not null && this.combatTargets.PullTargetId != target.GameObjectId)
         {
-            this.pullTargetId = null;
+            this.combatTargets.PullTargetId = null;
             this.ResetPullApproach();
         }
 
-        this.StopNavigationOperation();
-        this.pullTargetId = null;
+        if (alreadyPulling)
+            this.combatMovement.CompleteApproach(now, pulling: true);
+        this.combatTargets.PullTargetId = null;
         this.ResetPullApproach();
-        this.killTargetId = target.GameObjectId;
-        if (!this.TrySelectCombatTarget(target, now))
+        this.combatTargets.KillTargetId = target.GameObjectId;
+        if (!this.ApproachAndSelectTarget(target, player, now, alreadyEngaged: true))
             return true;
 
         this.statusReason = $"优先击杀{GetLostPriorityTargetLabel(kind)}：{target.Name}（锁定至击杀）";
@@ -5079,49 +5555,12 @@ public sealed unsafe class FateAutomationController : IDisposable
         return true;
     }
 
-    private int GetLostPriorityTargetThresholdSeconds(LostPriorityTargetKind kind) => kind switch
-    {
-        LostPriorityTargetKind.LostGirl => this.configuration.LostGirlRemainingTimeThresholdSeconds,
-        LostPriorityTargetKind.LostOne => this.configuration.LostOneRemainingTimeThresholdSeconds,
-        _ => 0,
-    };
-
     private static string GetLostPriorityTargetLabel(LostPriorityTargetKind kind) => kind switch
     {
         LostPriorityTargetKind.LostGirl => "迷失少女",
         LostPriorityTargetKind.LostOne => "迷失者",
         _ => "迷失目标",
     };
-
-    private static LostPriorityTargetKind? GetLostPriorityTargetKind(IBattleNpc target)
-    {
-        // These BNpc identities are stable across client languages. Only fall back to the
-        // localized object name when the client did not expose either ID.
-        if (target.BaseId == 7586 || target.NameId == 6737)
-            return LostPriorityTargetKind.LostGirl;
-
-        if (target.NameId == 6738)
-            return LostPriorityTargetKind.LostOne;
-
-        if (target.BaseId != 0 || target.NameId != 0)
-            return null;
-
-        string name = string.Concat(target.Name.ToString().Normalize(System.Text.NormalizationForm.FormKC)
-            .Where(character => !char.IsWhiteSpace(character)));
-        if (name.Equals("迷失少女", StringComparison.Ordinal)
-            || name.StartsWith("迷失少女", StringComparison.Ordinal))
-        {
-            return LostPriorityTargetKind.LostGirl;
-        }
-
-        if (name.Equals("迷失者", StringComparison.Ordinal)
-            || name.StartsWith("迷失者", StringComparison.Ordinal))
-        {
-            return LostPriorityTargetKind.LostOne;
-        }
-
-        return null;
-    }
 
     private void HandleSealedGeneralBatch(
         DateTime now,
@@ -5132,57 +5571,50 @@ public sealed unsafe class FateAutomationController : IDisposable
         IReadOnlyList<IBattleNpc> protectedTargets,
         int nonFateAggroCount)
     {
-        this.StopNavigationOperation();
-        this.pullTargetId = null;
+        this.combatTargets.PullTargetId = null;
         this.ResetPullApproach();
         if (activeCombatTargets.Count > 0)
         {
             this.pullBatchEmptySince = DateTime.MinValue;
-            int effectiveAggroLimit = this.GetEffectiveAggroLimit(fate);
-            bool refill = this.CanRefillAtHalf(fate)
-                && activeCombatTargets.Count <= effectiveAggroLimit / 2;
+            int effectiveAggroLimit = this.combatTargets.GetEffectiveAggroLimit(fate, this.CurrentClassJobRole);
+            bool refill = this.combatTargets.ShouldRefill(fate, activeCombatTargets.Count, this.CurrentClassJobRole);
             if (refill)
             {
-                HashSet<ulong> activeIds = activeCombatTargets
-                    .Select(target => target.GameObjectId)
-                    .ToHashSet();
-                bool IsAvailable(IBattleNpc enemy) =>
-                    !activeIds.Contains(enemy.GameObjectId)
-                    && (!this.skippedTargets.TryGetValue(enemy.GameObjectId, out DateTime until) || until <= now);
-
-                IBattleNpc? refillTarget = null;
-                foreach (IBattleNpc protectedTarget in protectedTargets)
-                {
-                    refillTarget = enemies
-                        .Where(IsAvailable)
-                        .Where(enemy => enemy.TargetObjectId == protectedTarget.GameObjectId)
-                        .OrderBy(enemy => enemy.CurrentHp)
-                        .ThenBy(enemy => Vector3.DistanceSquared(protectedTarget.Position, enemy.Position))
-                        .FirstOrDefault();
-                    if (refillTarget is not null)
-                        break;
-                }
-
-                refillTarget ??= enemies
-                    .Where(IsAvailable)
-                    .OrderBy(enemy => Vector3.DistanceSquared(player.Position, enemy.Position))
-                    .FirstOrDefault();
+                PullTargetChoice refillChoice = this.combatTargets.ChoosePull(
+                    now, fate, player.Position, enemies, activeCombatTargets, protectedTargets);
+                IBattleNpc? refillTarget = refillChoice.Target;
+                bool isProtectionThreat = refillChoice.Kind == PullTargetKind.ProtectionThreat;
 
                 // Reaching N/2 is only a permission to refill. If the object table contains no
                 // eligible candidate, remain in Fighting instead of bouncing Fighting → Pulling
                 // → Fighting every framework tick.
                 if (refillTarget is null)
                 {
-                    this.SelectLockedKillTarget(player, activeCombatTargets);
+                    this.SelectLockedKillTarget(now, player, activeCombatTargets);
                     this.statusReason = $"接战目标剩余 {activeCombatTargets.Count} 只（非FATE {nonFateAggroCount}），但当前没有可补充目标，继续战斗";
                     this.nextActionAt = now.AddMilliseconds(250);
                     return;
                 }
 
+                if (this.combatTargets.PullBatch.TrySealForDistantTarget(
+                        activeCombatTargets.Count,
+                        Vector3.DistanceSquared(player.Position, refillTarget.Position),
+                        isProtectionThreat))
+                {
+                    this.AddDiagnostic(
+                        DiagnosticSeverity.Information,
+                        $"已接战 {activeCombatTargets.Count} 只，最近剩余普通目标 {refillTarget.Name} 距离 {Vector3.Distance(player.Position, refillTarget.Position):0.0} 达到 25 码，取消补怪并清空本批");
+                    this.SelectLockedKillTarget(now, player, activeCombatTargets);
+                    this.statusReason = "最近剩余普通目标距离达到 25 码，先清空本批再拉取";
+                    this.nextActionAt = now.AddMilliseconds(250);
+                    return;
+                }
+
+                this.StopNavigationOperation();
                 this.ResetPullBatch();
                 foreach (IBattleNpc target in activeCombatTargets)
-                    this.pullBatchTargets.Add(target.GameObjectId);
-                this.killTargetId = null;
+                    this.combatTargets.ConfirmEngaged(target.GameObjectId);
+                this.combatTargets.KillTargetId = null;
                 this.Transition(
                     AutomationState.PullingTargets,
                     $"接战目标剩余 {activeCombatTargets.Count} 只（非FATE {nonFateAggroCount}），不超过当前上限 {effectiveAggroLimit} 的一半，按当前 FATE 选怪规则补充",
@@ -5190,9 +5622,11 @@ public sealed unsafe class FateAutomationController : IDisposable
                 return;
             }
 
-            this.SelectLockedKillTarget(player, activeCombatTargets);
-            this.statusReason = this.CanRefillAtHalf(fate)
-                ? $"本批战斗中：剩余 {activeCombatTargets.Count} 只（非FATE {nonFateAggroCount}），降至 {this.GetEffectiveAggroLimit(fate) / 2} 只后补充"
+            this.SelectLockedKillTarget(now, player, activeCombatTargets);
+            this.statusReason = this.combatTargets.PullBatch.MustDrain
+                ? $"普通拉怪距离限制：先清空本批，剩余 {activeCombatTargets.Count} 只（非FATE {nonFateAggroCount}）"
+                : this.combatTargets.CanRefillAtHalf(fate)
+                ? $"本批战斗中：剩余 {activeCombatTargets.Count} 只（非FATE {nonFateAggroCount}），降至 {this.combatTargets.GetEffectiveAggroLimit(fate, this.CurrentClassJobRole) / 2} 只后补充"
                 : fate.Progress >= 80
                     ? $"FATE 进度 {fate.Progress}%：本批清空后再拉取，暂不补充（当前非FATE {nonFateAggroCount} 只）"
                     : $"本批战斗中：剩余 {activeCombatTargets.Count} 只（非FATE {nonFateAggroCount}），清空前不补充";
@@ -5200,7 +5634,8 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        this.killTargetId = null;
+        this.StopNavigationOperation();
+        this.combatTargets.KillTargetId = null;
         if (this.pullBatchEmptySince == DateTime.MinValue)
         {
             this.pullBatchEmptySince = now;
@@ -5221,60 +5656,47 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.Transition(AutomationState.PullingTargets, "上一批已清空，按当前 FATE 选怪规则组建下一批");
     }
 
-    private int GetEffectiveAggroLimit(FateSnapshot fate) => fate.Progress >= 90
-        ? 1
-        : this.configuration.MaxAggroCount;
-
-    private bool CanRefillAtHalf(FateSnapshot fate) =>
-        this.configuration.PullRefillPolicy == PullRefillPolicy.RefillAtHalf
-        && fate.Progress < 80;
-
-    private void SelectLockedKillTarget(IPlayerCharacter player, IReadOnlyList<IBattleNpc> activeTargets)
+    private void SelectLockedKillTarget(DateTime now, IPlayerCharacter player, IReadOnlyList<IBattleNpc> activeTargets)
     {
-        IBattleNpc? target = this.killTargetId is { } locked
-            ? activeTargets.FirstOrDefault(candidate => candidate.GameObjectId == locked)
-            : null;
-        target ??= activeTargets
-            .OrderBy(candidate => candidate.CurrentHp)
-            .ThenBy(candidate => Vector3.DistanceSquared(player.Position, candidate.Position))
-            .FirstOrDefault();
+        IBattleNpc? target = this.combatTargets.ChooseKill(player.Position, activeTargets);
         if (target is null)
+        {
+            this.StopNavigationOperation();
             return;
+        }
 
-        if (this.killTargetId != target.GameObjectId)
+        if (this.combatTargets.KillTargetId != target.GameObjectId)
             this.AddDiagnostic(DiagnosticSeverity.Information, $"击杀目标锁定 → {target.Name} ({target.GameObjectId:X})");
-        this.killTargetId = target.GameObjectId;
-        this.TrySelectCombatTarget(target, DateTime.UtcNow);
+        this.combatTargets.KillTargetId = target.GameObjectId;
+        this.ApproachAndSelectTarget(target, player, now, alreadyEngaged: true);
     }
 
     private void FollowEscortTarget(DateTime now, IPlayerCharacter player, IBattleNpc escortTarget)
     {
-        const float startDistance = 10f;
-        const float stopDistance = 5f;
         float distance = Vector3.Distance(player.Position, escortTarget.Position);
-        if (distance <= stopDistance)
+        CombatMovement.EscortAction action = this.combatMovement.FollowEscort(
+            now, player.Position, escortTarget.Position, this.vnavmesh.IsMoveActive);
+        switch (action)
         {
-            this.StopNavigationOperation();
-            this.escortFollowLastPosition = escortTarget.Position;
-            this.statusReason = $"护送模式：跟随 {escortTarget.Name}，当前距离 {distance:0.0}";
-            return;
-        }
-
-        if (distance < startDistance && !this.vnavmesh.IsMoveActive)
-        {
-            this.statusReason = $"护送模式：保持在 {escortTarget.Name} 附近，当前距离 {distance:0.0}";
-            return;
-        }
-
-        bool targetMoved = this.escortFollowLastPosition is null
-            || Vector3.DistanceSquared(this.escortFollowLastPosition.Value, escortTarget.Position) >= 3f * 3f;
-        if (this.vnavmesh.IsMoveActive
-            && (!targetMoved || now - this.escortFollowLastRequestAt < TimeSpan.FromSeconds(2)))
-        {
-            if (this.travelSessionActive && this.travelPurpose == NavigationPurpose.EscortFollow)
-                this.TickTravelSession(now, escortTarget.Position, () => false);
-            this.statusReason = $"护送模式：正在跟随 {escortTarget.Name}，当前距离 {distance:0.0}";
-            return;
+            case CombatMovement.EscortAction.Stop:
+                this.StopNavigationOperation();
+                this.statusReason = $"护送模式：跟随 {escortTarget.Name}，当前距离 {distance:0.0}";
+                return;
+            case CombatMovement.EscortAction.Stay:
+                this.statusReason = $"护送模式：保持在 {escortTarget.Name} 附近，当前距离 {distance:0.0}";
+                return;
+            case CombatMovement.EscortAction.Continue:
+                if (this.travelSessionActive && this.travelPurpose == NavigationPurpose.EscortFollow)
+                {
+                    NavigationTravelUpdate update = this.TickTravelSession(now, escortTarget.Position, () => false);
+                    if (update.FailureStage == NavigationFailureStage.LandingTimeout && this.ResolveActiveFate() is { } fate)
+                    {
+                        this.HandleLandingFailure(fate, update.Reason);
+                        return;
+                    }
+                }
+                this.statusReason = $"护送模式：正在跟随 {escortTarget.Name}，当前距离 {distance:0.0}";
+                return;
         }
 
         NavigationRequestResult requestResult = this.TryIssueNavigationRequest(
@@ -5283,10 +5705,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             escortTarget.Position,
             fly: false);
         if (requestResult == NavigationRequestResult.Accepted)
-        {
-            this.escortFollowLastPosition = escortTarget.Position;
-            this.escortFollowLastRequestAt = now;
-        }
+            this.combatMovement.ConfirmEscortRequest(now, escortTarget.Position);
         this.statusReason = $"护送模式：正在靠近 {escortTarget.Name}，当前距离 {distance:0.0}";
     }
 
@@ -5303,10 +5722,13 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        if (this.ReturnToFateIfOutside(fate, player, now))
+        if (this.EnsureLevelSyncBeforeCombat(now, fate, "Boss 战斗选目标前"))
             return;
 
-        if (this.EnsureLevelSyncBeforeCombat(now, fate, "Boss 战斗选目标前"))
+        IReadOnlyList<IBattleNpc> related = this.targetSelector.FindAllFateObjects(fate.FateId, player.Position);
+        IBattleNpc[] nearbyEnemies = CombatTargetSelection.GetInRangeEnemies(
+            CombatTargetSelection.GetAllEnemies(related), fate);
+        if (this.TryHandleLostPriorityTarget(now, fate, player, related, nearbyEnemies))
             return;
 
         if (this.TryHandleDestroyObjectiveCombat(now, fate, player))
@@ -5317,23 +5739,19 @@ public sealed unsafe class FateAutomationController : IDisposable
         // the runtime snapshot report a misleading zero while the player is actually engaged.
         this.aggroCount = this.targetSelector.FindTargetsAggroedOnPlayer(player).Count;
         // Retain the selected living boss; only choose a new candidate after it disappears/dies.
-        IReadOnlyList<IBattleNpc> bossCandidates = this.targetSelector.FindBossTargets(fate.FateId, player.Position);
-        IBattleNpc? boss = this.bossTargetId is { } lockedBoss
-            ? this.targetSelector.FindLiveTarget(lockedBoss)
-            : null;
-        if (boss is not null && (!FateTargetSelector.BelongsToFate(boss, fate.FateId) || FateTargetSelector.IsFriendly(boss)))
-            boss = null;
-        boss ??= bossCandidates.FirstOrDefault();
+        IBattleNpc? boss = this.combatTargets.ChooseBoss(
+            this.targetSelector, fate.FateId, player.Position, out IReadOnlyList<IBattleNpc> bossCandidates);
         if (boss is null)
         {
-            if (this.bossTargetId is not null)
+            this.StopNavigationOperation();
+            if (this.combatTargets.BossTargetId is not null)
             {
                 this.AddDiagnostic(
                     DiagnosticSeverity.Information,
-                    $"Boss 实时扫描：原目标 {this.bossTargetId.Value:X} 已消失、不可选中或转为友方；当前没有可攻击的 FATE 目标");
+                    $"Boss 实时扫描：原目标 {this.combatTargets.BossTargetId.Value:X} 已消失、不可选中或转为友方；当前没有可攻击的 FATE 目标");
                 this.ClearTarget();
             }
-            this.bossTargetId = null;
+            this.combatTargets.BossTargetId = null;
             this.statusReason = "讨伐BOSS类 FATE 暂未发现可选中的目标，等待刷新";
             this.nextActionAt = now.AddMilliseconds(500);
             return;
@@ -5376,19 +5794,18 @@ public sealed unsafe class FateAutomationController : IDisposable
             }
         }
 
-        if (this.bossTargetId != boss.GameObjectId)
+        if (this.combatTargets.BossTargetId != boss.GameObjectId)
         {
-            string previous = this.bossTargetId is { } previousId ? previousId.ToString("X") : "无";
+            string previous = this.combatTargets.BossTargetId is { } previousId ? previousId.ToString("X") : "无";
             this.AddDiagnostic(
                 DiagnosticSeverity.Information,
                 $"Boss 实时扫描切换目标：{previous} → {boss.Name}({boss.GameObjectId:X})，" +
                 $"候选数={bossCandidates.Count}，MaxHp={boss.MaxHp}，当前HP={boss.CurrentHp}；候选={FormatBossTargets(bossCandidates)}");
         }
-        this.bossTargetId = boss.GameObjectId;
-        this.pullTargetId = null;
-        if (!this.TrySelectCombatTarget(boss, now))
+        this.combatTargets.BossTargetId = boss.GameObjectId;
+        this.combatTargets.PullTargetId = null;
+        if (!this.ApproachAndSelectTarget(boss, player, now))
             return;
-        this.StopNavigationOperation();
         this.statusReason = $"讨伐BOSS专注模式：{boss.Name}，HP {boss.CurrentHp}/{boss.MaxHp}";
         this.nextActionAt = now.AddMilliseconds(250);
     }
@@ -5415,13 +5832,13 @@ public sealed unsafe class FateAutomationController : IDisposable
     {
         this.bossCleanupContinuation = continuation;
         this.bossCleanupFateId = fate.FateId;
-        this.bossCleanupTargetId = null;
+        this.combatTargets.BossCleanupTargetId = null;
         this.bossCleanupNoTargetSince = DateTime.MinValue;
         this.ClearTarget();
         this.StopNavigationOperation();
-        this.pullTargetId = null;
-        this.killTargetId = null;
-        this.bossTargetId = null;
+        this.combatTargets.PullTargetId = null;
+        this.combatTargets.KillTargetId = null;
+        this.combatTargets.BossTargetId = null;
         this.ResetPullBatch();
         this.Transition(AutomationState.CleaningBossNonFate, reason, DiagnosticSeverity.Warning);
     }
@@ -5451,29 +5868,21 @@ public sealed unsafe class FateAutomationController : IDisposable
                 .ToArray();
         }
 
-        IBattleNpc? target = this.bossCleanupTargetId is { } locked
-            ? candidates.FirstOrDefault(candidate => candidate.GameObjectId == locked)
-            : null;
-        target ??= candidates
-            .OrderByDescending(candidate => FateTargetSelector.IsTargetingPlayer(candidate, player))
-            .ThenBy(candidate => candidate.CurrentHp)
-            .ThenBy(candidate => Vector3.DistanceSquared(player.Position, candidate.Position))
-            .FirstOrDefault();
+        IBattleNpc? target = this.combatTargets.ChooseBossCleanup(player.Position, player.GameObjectId, candidates);
 
         if (target is not null)
         {
             this.bossCleanupNoTargetSince = DateTime.MinValue;
-            if (this.bossCleanupTargetId != target.GameObjectId)
+            if (this.combatTargets.BossCleanupTargetId != target.GameObjectId)
             {
-                this.bossCleanupTargetId = target.GameObjectId;
+                this.combatTargets.BossCleanupTargetId = target.GameObjectId;
                 this.AddDiagnostic(
                     DiagnosticSeverity.Information,
                     $"Boss 非 FATE 清理目标锁定 → {target.Name} ({target.GameObjectId:X})，FateId={FateTargetSelector.GetFateId(target)}，HP={target.CurrentHp}/{target.MaxHp}");
             }
 
-            if (!this.TrySelectCombatTarget(target, now))
+            if (!this.ApproachAndSelectTarget(target, player, now))
                 return;
-            this.StopNavigationOperation();
             this.statusReason = this.bossCleanupContinuation == BossCleanupContinuation.BeforeBossFight
                 ? $"Boss 开战前清理周围非 FATE 怪物：{target.Name}，剩余 {candidates.Count}"
                 : $"Boss 紧急清理非 FATE 怪物：{target.Name}，剩余 {candidates.Count}";
@@ -5481,7 +5890,8 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        this.bossCleanupTargetId = null;
+        this.combatTargets.BossCleanupTargetId = null;
+        this.StopNavigationOperation();
         this.ClearTarget();
         if (this.bossCleanupNoTargetSince == DateTime.MinValue)
             this.bossCleanupNoTargetSince = now;
@@ -5501,7 +5911,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.levelSyncAttempts = 0;
             this.Transition(
                 AutomationState.WaitingForLevelSync,
-                "Boss 开战前非 FATE 怪物已清理，现在开始等级同步");
+                "Boss 开战前非 FATE 怪物已清理，继续同步前站位检查与等级同步");
             this.nextActionAt = now;
             return;
         }
@@ -5537,49 +5947,33 @@ public sealed unsafe class FateAutomationController : IDisposable
         }
     }
 
-    private bool ReturnToFateIfOutside(
-        FateSnapshot fate,
-        IPlayerCharacter player,
-        DateTime now,
-        Vector3? safetyAnchor = null)
+    private void BeginReturnToFateArea(string reason, AutomationState? resumeState = null)
     {
-        Vector3 anchor = safetyAnchor ?? fate.Position;
-        float horizontalDistance = HorizontalDistance(player.Position, anchor);
-        float boundary = safetyAnchor is null ? Math.Max(6f, fate.Radius) + 2f : 14f;
-        if (horizontalDistance <= boundary)
-        {
-            this.outsideFateAreaSince = DateTime.MinValue;
-            return false;
-        }
-
-        if (this.outsideFateAreaSince == DateTime.MinValue)
-        {
-            this.outsideFateAreaSince = now;
-            this.AddDiagnostic(
-                DiagnosticSeverity.Warning,
-                $"战斗中离开 FATE #{fate.FateId} 安全区域：距{(safetyAnchor is null ? "中心" : "护送目标")} {horizontalDistance:0.0}，边界 {boundary:0.0}");
-            return false;
-        }
-
-        if (now - this.outsideFateAreaSince < TimeSpan.FromSeconds(1.5))
-            return false;
-
         this.StopNavigationOperation();
+        this.vnavmesh.Stop();
         this.ClearTarget();
-        this.pullTargetId = null;
-        this.killTargetId = null;
+        FateSnapshot? fate = this.ResolveActiveFate();
+        this.combatMovement.BeginAreaReturn(fate?.Position);
+        if (resumeState is not null)
+            this.returnAreaResumeState = resumeState;
+        else if (this.returnAreaResumeState is null
+                 && FateAreaReturnSession.ShouldMonitor(this.state, this.companionResumeState,
+                     this.condition[ConditionFlag.InCombat]))
+            this.returnAreaResumeState = this.state;
+        this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
+        this.combatMovement.ResetTargetSelection();
         this.aggroCount = 0;
-        this.ResetPullBatch();
+        // Area/sync recovery must not reopen a distance-sealed batch or lose its members.
+        this.ResetPullApproach();
+        this.pullBatchEmptySince = DateTime.MinValue;
         this.ResetNavigationProgress();
         this.returnAreaDiagnosticAt = DateTime.MinValue;
         this.Transition(
             AutomationState.ReturningToFateArea,
-            $"战斗中被拖出安全区域，返回{(safetyAnchor is null ? "中心" : "护送目标")}后重新同步（距离 {horizontalDistance:0.0}）",
+            reason,
             DiagnosticSeverity.Warning);
-        return true;
+        this.nextActionAt = DateTime.MinValue;
     }
 
     private void HandleReturnToFateArea(DateTime now)
@@ -5595,28 +5989,42 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        Vector3 returnPosition = fate.Position;
-        float safeRadius = Math.Max(3f, fate.Radius * 0.65f);
-        if (fate.CombatProfile.ProtectionMode == FateProtectionMode.Moving)
+        this.ClearTarget();
+        if (now < this.nextActionAt)
+            return;
+        if (!this.vnavmesh.IsAvailable)
         {
-            IBattleNpc? escortTarget = this.targetSelector.FindAllFateObjects(fate.FateId, player.Position)
-                .Where(FateTargetSelector.IsFriendly)
-                .OrderBy(candidate => candidate.CurrentHp)
-                .ThenBy(candidate => Vector3.DistanceSquared(player.Position, candidate.Position))
-                .FirstOrDefault();
-            if (escortTarget is not null)
-            {
-                returnPosition = escortTarget.Position;
-                this.escortFollowLastPosition = returnPosition;
-                safeRadius = 5f;
-            }
-            else if (this.escortFollowLastPosition is { } lastEscortPosition)
-            {
-                returnPosition = lastEscortPosition;
-                safeRadius = 5f;
-            }
+            this.statusReason = "位置回正等待 vnavmesh 恢复";
+            if (now - this.stateEnteredAt >= TimeSpan.FromSeconds(30))
+                this.FailRecoverableAction("位置回正时 vnavmesh 在 30 秒内未恢复", this.IsRequiredFate(fate.FateId));
+            else
+                this.nextActionAt = now.AddMilliseconds(250);
+            return;
         }
 
+        if (this.combatMovement.AreaReturnDestination is null)
+        {
+            Vector3 waypoint = this.combatMovement.GetAreaReturnWaypoint(fate.Position);
+            // Resolve the center to nearby walkable ground, never back to a perimeter point.
+            Vector3? nearest = this.vnavmesh.FindNearestReachablePoint(
+                waypoint, 3f, 100f);
+            if (!this.combatMovement.ResolveAreaReturnDestination(nearest, fate.Position, fate.Radius))
+            {
+                if (now - this.stateEnteredAt >= TimeSpan.FromSeconds(30))
+                    this.FailRecoverableAction("FATE 中心附近 30 秒内未找到圈内可站立点", this.IsRequiredFate(fate.FateId));
+                else
+                {
+                    this.statusReason = "位置回正等待 FATE 中心附近可站立点";
+                    this.nextActionAt = now.AddMilliseconds(250);
+                }
+                return;
+            }
+
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"位置回正：FATE #{fate.FateId} 中心={waypoint}，中心附近可站立点={this.combatMovement.AreaReturnDestination.Value}");
+        }
+
+        Vector3 returnPosition = this.combatMovement.AreaReturnDestination.Value;
         float horizontalDistance = HorizontalDistance(player.Position, returnPosition);
         if (now >= this.returnAreaDiagnosticAt)
         {
@@ -5624,43 +6032,73 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.AddDiagnostic(
                 DiagnosticSeverity.Debug,
                 $"自动返回 FATE 状态：FATE=#{fate.FateId}，当前位置={player.Position}，目标={returnPosition}，" +
-                $"水平距离={horizontalDistance:0.0}，safeRadius={safeRadius:0.0}，" +
+                $"水平距离={horizontalDistance:0.0}，到达距离=3，" +
                 $"vnavActive={this.vnavmesh.IsMoveActive}，PathRunning={this.vnavmesh.IsPathRunning}，" +
                 $"PathfindInProgress={this.vnavmesh.IsMoveInProgress}，InCombat={this.condition[ConditionFlag.InCombat]}");
         }
-        if (horizontalDistance <= safeRadius)
+        if (this.combatMovement.IsAtAreaReturnDestination(player.Position, fate.Position, fate.Radius))
         {
             this.StopNavigationOperation();
-            this.outsideFateAreaSince = DateTime.MinValue;
+            if (!IsPlayerInFate(fate.FateId))
+            {
+                this.ClearTarget();
+                if (now - this.stateEnteredAt >= TimeSpan.FromSeconds(30))
+                    this.FailRecoverableAction("回到 FATE 中心后客户端仍未恢复当前 FATE 上下文", this.IsRequiredFate(fate.FateId));
+                else
+                {
+                    this.statusReason = "已返回 FATE 中心，等待客户端恢复当前 FATE 上下文";
+                    this.nextActionAt = now.AddMilliseconds(250);
+                }
+                return;
+            }
+
+            this.combatMovement.ResetAreaReturn();
             this.levelSyncAttempts = 0;
             this.AddDiagnostic(
                 DiagnosticSeverity.Information,
-                $"自动返回 FATE 已到达安全锚点：水平距离={horizontalDistance:0.0}，safeRadius={safeRadius:0.0}，" +
+                $"自动返回 FATE 已到达中心附近可站立点：水平距离={horizontalDistance:0.0}，" +
                 $"准备重新同步，当前位置={player.Position}");
+            if (this.returnAreaResumeState is { } resumeState
+                && (resumeState == AutomationState.CleaningBossNonFate
+                    || this.playerState.Level <= this.GetFateLevel(fate)
+                    || this.playerState.IsLevelSynced && this.levelSync.IsSyncedTo(fate.FateId)))
+            {
+                this.returnAreaResumeState = null;
+                this.Transition(resumeState, "位置回正完成，恢复原战斗流程");
+                this.nextActionAt = now;
+                return;
+            }
+
             this.Transition(
                 AutomationState.WaitingForLevelSync,
                 $"已返回 FATE 安全范围（距离 {horizontalDistance:0.0}），重新验证等级同步");
             return;
         }
 
-        if (!this.vnavmesh.IsAvailable)
+        if (this.travelSessionActive)
         {
-            this.statusReason = "返回 FATE 区域时等待 vnavmesh 恢复";
-            if (now >= this.returnAreaDiagnosticAt)
+            NavigationTravelUpdate update = this.TickTravelSession(now, returnPosition, () => false);
+            if (update.Outcome == NavigationTravelOutcome.Failed || update.RequestResult == NavigationRequestResult.Rejected)
             {
-                this.returnAreaDiagnosticAt = now.AddSeconds(2);
-                this.AddDiagnostic(
-                    DiagnosticSeverity.Warning,
-                    $"自动返回 FATE 等待 vnavmesh：目标={returnPosition}，当前水平距离={horizontalDistance:0.0}，" +
-                    $"IsAvailable=False，IsMoveActive={this.vnavmesh.IsMoveActive}");
+                if (update.FailureStage == NavigationFailureStage.LandingTimeout)
+                {
+                    this.HandleLandingFailure(fate, update.Reason);
+                    return;
+                }
+                this.StopNavigationOperation();
+                this.combatMovement.ResetAreaReturnDestination();
+                this.FailRecoverableAction($"位置回正地面导航失败：{update.Reason}", this.IsRequiredFate(fate.FateId));
+                return;
             }
-            this.nextActionAt = now.AddSeconds(2);
-            return;
+            // A backend-completed path is not proof that the stricter center arrival passed.
+            if (update.Outcome == NavigationTravelOutcome.Arrived)
+            {
+                this.StopNavigationOperation();
+                this.combatMovement.ResetAreaReturnDestination();
+                this.FailRecoverableAction("回正导航已结束，但未实际到达 FATE 中心范围", this.IsRequiredFate(fate.FateId));
+                return;
+            }
         }
-
-        this.CheckNavigationProgress(now, horizontalDistance, fate, returnPosition, horizontal: true);
-        if (this.state != AutomationState.ReturningToFateArea)
-            return;
 
         NavigationRequestResult requestResult = this.TryIssueNavigationRequest(
             now,
@@ -5679,21 +6117,29 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        this.statusReason = $"正在返回 FATE 安全锚点，当前距离 {horizontalDistance:0.0}";
+        this.statusReason = $"正在返回 FATE 中心，当前距离 {horizontalDistance:0.0}";
         this.AddDiagnostic(
             DiagnosticSeverity.Information,
             $"自动返回 FATE 区域：已请求地面导航；当前位置={player.Position}，目标={returnPosition}，" +
-            $"水平距离={horizontalDistance:0.0}，safeRadius={safeRadius:0.0}");
+            $"水平距离={horizontalDistance:0.0}");
     }
 
-    /// <summary>Verify SetHardTarget's result; walk to a known actor when selection is rejected.</summary>
-    private bool TrySelectCombatTarget(IBattleNpc target, DateTime now)
+    // Engagement is per actor, not the player's global combat flag: new pulls still need movement.
+    // The native enemy list also includes enemies attacking a companion or changing targets.
+    private bool IsEngagedCombatTarget(IBattleNpc target, IPlayerCharacter player) =>
+        this.combatTargets.IsEngaged(target, player.GameObjectId)
+        || this.targetSelector.FindEngagedTargets(player).Any(enemy => enemy.GameObjectId == target.GameObjectId);
+
+    /// <summary>Verify SetHardTarget; selection recovery may approach only an unengaged actor.</summary>
+    private bool TrySelectCombatTarget(IBattleNpc target, DateTime now, bool pulling, bool engaged)
     {
         if (!target.IsValid()
             || target.IsDead
             || !target.IsTargetable
             || FateTargetSelector.IsFriendly(target))
         {
+            this.StopNavigationOperation();
+            this.combatMovement.ResetTargetSelection();
             if (this.targetManager.Target?.GameObjectId == target.GameObjectId)
                 this.ClearTarget();
             this.statusReason = $"跳过不可攻击目标 {target.Name}（不可选中、已死亡或友方）";
@@ -5701,140 +6147,137 @@ public sealed unsafe class FateAutomationController : IDisposable
             return false;
         }
 
-        if (this.selectingTargetId != target.GameObjectId)
+        if (this.combatMovement.BeginTargetSelection(target.GameObjectId))
+            this.StopNavigationOperation();
+        if (engaged)
         {
-            if (this.targetSelectionMoving)
-                this.StopNavigationOperation();
-            this.selectingTargetId = target.GameObjectId;
-            this.targetSelectionFailedAt = DateTime.MinValue;
-            this.targetSelectionMoving = false;
+            this.combatMovement.CompleteApproach(now, pulling);
+            this.StopNavigationOperation();
         }
         this.targetManager.Target = target;
         if (target.IsTargetable && this.targetManager.Target?.GameObjectId == target.GameObjectId)
         {
-            if (this.targetSelectionMoving)
+            if (this.combatMovement.CompleteTargetSelection())
                 this.StopNavigationOperation();
-            this.targetSelectionMoving = false;
-            this.targetSelectionFailedAt = DateTime.MinValue;
             return true;
         }
-        if (this.targetSelectionFailedAt == DateTime.MinValue)
-            this.targetSelectionFailedAt = now;
-        if (now - this.targetSelectionFailedAt >= TimeSpan.FromSeconds(1))
+
+        if (engaged)
         {
-            if (!this.targetSelectionMoving)
-            {
-                this.StopNavigationOperation();
-                this.targetSelectionMoving = true;
-                this.AddDiagnostic(DiagnosticSeverity.Warning,
-                    $"无法选中已锁定目标 {target.Name} ({target.GameObjectId:X})，地面靠近 {target.Position}，选中后停止");
-            }
-            this.RequestPullMovement(target.Position, now);
+            this.statusReason = $"等待选中已接战目标 {target.Name}，不导航靠近";
+            this.nextActionAt = now.AddMilliseconds(250);
+            return false;
         }
-        this.statusReason = $"等待选中 {target.Name}，正在靠近已知位置";
+
+        CombatMovement.SelectionAction action = this.combatMovement.TargetSelectionFailed(now);
+        if (action == CombatMovement.SelectionAction.BeginApproach)
+        {
+            this.StopNavigationOperation();
+            this.AddDiagnostic(DiagnosticSeverity.Warning,
+                $"无法选中已锁定目标 {target.Name} ({target.GameObjectId:X})，地面靠近 {target.Position}，仅执行本次接近，不持续追近");
+        }
+        // Casting must stop an existing path even during the selection failure grace period.
+        bool casting = this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87]
+            || this.objectTable.LocalPlayer?.IsCasting == true;
+        bool attackingCast = this.IsAttackCastOn(target);
+        CombatMovement.ApproachAction recovery = pulling
+            ? this.combatMovement.UpdatePullApproach(float.PositiveInfinity, casting, now, attackingCast)
+            : this.combatMovement.UpdateTargetApproach(float.PositiveInfinity, casting, now, attackingCast);
+        if (action != CombatMovement.SelectionAction.Wait
+            || recovery is CombatMovement.ApproachAction.StopForCast or CombatMovement.ApproachAction.WaitForCast)
+            this.ApplyCombatApproach(target, now, recovery, pulling);
+        this.statusReason = $"等待选中 {target.Name}，不恢复已结束的接近";
         this.nextActionAt = now.AddMilliseconds(250);
         return false;
     }
 
-    private void ApproachAndSelectTarget(IBattleNpc target, IPlayerCharacter player, DateTime now)
+    private bool ApproachAndSelectTarget(IBattleNpc target, IPlayerCharacter player, DateTime now,
+        bool pulling = false, bool alreadyEngaged = false)
     {
-        if (!this.TrySelectCombatTarget(target, now))
-            return;
+        bool engaged = alreadyEngaged || this.IsEngagedCombatTarget(target, player);
+        if (!this.TrySelectCombatTarget(target, now, pulling, engaged))
+            return false;
+        if (engaged)
+            return true;
         float distance = Vector3.Distance(player.Position, target.Position);
-        bool casting = this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87];
-        if (casting)
+        bool casting = this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87] || player.IsCasting;
+        bool attackingCast = this.IsAttackCastOn(target);
+        CombatMovement.ApproachAction action = pulling
+            ? this.combatMovement.UpdatePullApproach(distance, casting, now, attackingCast)
+            : this.combatMovement.UpdateTargetApproach(distance, casting, now, attackingCast);
+        this.ApplyCombatApproach(target, now, action, pulling);
+        return true;
+    }
+
+    private bool IsAttackCastOn(IBattleNpc target) =>
+        this.objectTable.LocalPlayer is { IsCasting: true } player
+        && CombatMovement.IsAttackCast(player.CastActionType, player.CastActionId,
+            player.CastTargetObjectId, target.GameObjectId);
+
+    private void ApplyCombatApproach(IBattleNpc target, DateTime now, CombatMovement.ApproachAction action, bool pulling)
+    {
+        if (action == CombatMovement.ApproachAction.Approach)
         {
-            this.StopNavigationOperation();
-            this.pullCastProtectionUntil = now.AddSeconds(1);
-            this.statusReason = $"目标 {target.GameObjectId:X}：检测到读条，停止移动";
+            this.statusReason = $"目标 {target.GameObjectId:X}：正在接近至战斗距离";
+            this.RequestPullMovement(target.Position, now, pulling);
             return;
         }
 
-        if (now < this.pullCastProtectionUntil)
+        this.StopNavigationOperation();
+        switch (action)
         {
-            this.StopNavigationOperation();
-            this.statusReason = $"目标 {target.GameObjectId:X}：等待读条技能结算";
-            return;
-        }
-
-        switch (this.pullApproachPhase)
-        {
-            case PullApproachPhase.MovingToApproachRange:
-                if (distance <= this.configuration.PullApproachDistance)
-                {
-                    this.StopNavigationOperation();
-                    this.EnterPullPhase(PullApproachPhase.MeleeAttackWindow, now);
-                    return;
-                }
-
-                this.statusReason = $"目标 {target.GameObjectId:X}：正在接近至拉怪距离，当前 {distance:0.0}";
-                this.RequestPullMovement(target.Position, now);
-                return;
-
-            case PullApproachPhase.MeleeAttackWindow:
-                this.StopNavigationOperation();
-                this.statusReason = $"目标 {target.GameObjectId:X}：近距离等待仇恨，距离 {distance:0.0}";
-                if (distance > this.configuration.PullApproachDistance + 3f)
-                    this.EnterPullPhase(PullApproachPhase.MovingToApproachRange, now);
-                return;
+            case CombatMovement.ApproachAction.StopForCast:
+                this.statusReason = $"目标 {target.GameObjectId:X}：检测到读条，停止移动";
+                break;
+            case CombatMovement.ApproachAction.WaitForCast:
+                this.statusReason = $"目标 {target.GameObjectId:X}：等待读条技能结算";
+                break;
+            case CombatMovement.ApproachAction.Stay:
+                this.statusReason = $"目标 {target.GameObjectId:X}：本次接近已结束，不干预战斗站位";
+                break;
         }
     }
 
     private void BeginPullTarget(ulong targetId, DateTime now, PullTargetKind kind = PullTargetKind.Normal)
     {
-        this.pullTargetId = targetId;
-        this.pullTargetKind = kind;
-        this.pullAttemptStartedAt = now;
-        this.pullCastProtectionUntil = DateTime.MinValue;
-        this.EnterPullPhase(PullApproachPhase.MovingToApproachRange, now);
+        this.combatTargets.PullTargetId = targetId;
+        this.combatTargets.PullKind = kind;
+        this.combatMovement.BeginPull(now);
         this.StopNavigationOperation();
     }
 
-    private void EnterPullPhase(PullApproachPhase phase, DateTime now)
-    {
-        this.pullApproachPhase = phase;
-        this.pullPhaseStartedAt = now;
-    }
-
-    private bool IsPullAttemptTimedOut(DateTime now)
-    {
-        if (now - this.pullAttemptStartedAt >= TimeSpan.FromSeconds(30))
-            return true;
-
-        return this.pullApproachPhase == PullApproachPhase.MeleeAttackWindow
-            && now - this.pullPhaseStartedAt >= TimeSpan.FromSeconds(this.configuration.AggroConfirmationTimeoutSeconds);
-    }
-
-    private void RequestPullMovement(Vector3 targetPosition, DateTime now)
+    private void RequestPullMovement(Vector3 targetPosition, DateTime now, bool pulling)
     {
         NavigationRequestResult result = this.TryIssueNavigationRequest(
             now,
             NavigationPurpose.PullTarget,
             targetPosition,
             fly: false);
+        if (this.travelSessionActive && this.travelPurpose == NavigationPurpose.PullTarget
+            && this.travelSession.State == NavigationTravelState.Completed)
+        {
+            this.combatMovement.CompleteApproach(now, pulling);
+            this.StopNavigationOperation();
+            this.statusReason = "已到达本次接近终点，不再追随目标或纠正战斗站位";
+        }
         if (result == NavigationRequestResult.Rejected)
         {
             this.AddDiagnostic(
                 DiagnosticSeverity.Warning,
-                $"拉怪接近导航失败，进入当前拉怪超时处理：目标={targetPosition}");
-            this.pullAttemptStartedAt = now - TimeSpan.FromSeconds(30);
+                $"战斗目标接近导航失败：目标={targetPosition}");
+            if (pulling)
+                this.combatMovement.RejectPullNavigation(now);
         }
     }
 
-    private void ResetPullApproach()
-    {
-        this.pullAttemptStartedAt = DateTime.MinValue;
-        this.pullPhaseStartedAt = DateTime.MinValue;
-        this.pullCastProtectionUntil = DateTime.MinValue;
-        this.pullApproachPhase = PullApproachPhase.MovingToApproachRange;
-    }
+    private void ResetPullApproach() => this.combatMovement.ResetPull();
 
     private void EnterDeadState()
     {
         this.RecordFateDeathIfApplicable();
         this.CancelOwnedActions();
         this.ClearTarget();
-        this.pullTargetId = null;
+        this.combatTargets.PullTargetId = null;
         this.aggroCount = 0;
         this.deathStartedAt = DateTime.UtcNow;
         this.deathReturnAttemptStartedAt = DateTime.MinValue;
@@ -5967,40 +6410,22 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void BeginFateCleanup(FateSnapshot fate, bool succeeded, string? completionReason = null)
     {
+        if (completionReason is not null)
+            this.AddDiagnostic(DiagnosticSeverity.Debug, $"FATE #{fate.FateId} 清场依据：{completionReason}（清场不重复记账）");
         this.pendingFateResult = new PendingFateResult(fate, succeeded);
-        if (succeeded)
-        {
-            // Register completion before cleanup. Cleanup can take additional time because
-            // residual enemies or a stuck combat flag must be handled; delaying this counter
-            // until cleanup finished made preset progress appear as 0/1 and blocked transitions.
-            this.totalCompletedFates++;
-            this.presetCompletedFates++;
-            this.presetTargetFateCounts[fate.FateId] = this.presetTargetFateCounts.GetValueOrDefault(fate.FateId) + 1;
-            this.AddDiagnostic(
-                DiagnosticSeverity.Information,
-                completionReason is null
-                    ? $"FATE #{fate.FateId} {fate.Name} 已进入 Ended；当前地图完成计数 = {this.presetCompletedFates}"
-                    : $"{completionReason}；当前地图完成计数 = {this.presetCompletedFates}");
-        }
         this.activeFateId = null;
         this.cleanupContinuation = CleanupContinuation.FinalizeFate;
-        this.pullTargetId = null;
-        this.killTargetId = null;
-        this.lostPriorityTargetId = null;
-        this.lostPriorityTargetKind = null;
+        this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
         this.bossCleanupFateId = null;
-        this.bossCleanupTargetId = null;
+        this.combatTargets.BossCleanupTargetId = null;
         this.bossCleanupNoTargetSince = DateTime.MinValue;
         this.bossCancelSyncStartedAt = DateTime.MinValue;
         this.bossEnvironmentLogAt = DateTime.MinValue;
         this.bossPreCombatCleanupChecked = false;
         this.ResetPullBatch();
-        this.escortFollowLastRequestAt = DateTime.MinValue;
-        this.escortFollowLastPosition = null;
-        this.cleanupTargetId = null;
+        this.combatMovement.ResetEscort();
+        this.combatTargets.CleanupTargetId = null;
         this.aggroCount = 0;
         this.ResetCombatEscapeState();
         this.StopNavigationOperation();
@@ -6016,13 +6441,13 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.cleanupContinuation = continuation;
         this.cleanupDiagnosticAt = DateTime.MinValue;
         this.travelObservationDelayPending = false;
-        this.pullTargetId = null;
-        this.killTargetId = null;
+        this.combatTargets.PullTargetId = null;
+        this.combatTargets.KillTargetId = null;
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
+        this.combatTargets.Destroy.Reset();
+        this.combatTargets.BossTargetId = null;
         this.ResetPullBatch();
-        this.cleanupTargetId = null;
+        this.combatTargets.CleanupTargetId = null;
         this.aggroCount = 0;
         this.ResetCombatEscapeState();
         this.StopNavigationOperation();
@@ -6074,6 +6499,16 @@ public sealed unsafe class FateAutomationController : IDisposable
             }
         }
         this.aggroCount = targets.Count;
+        if (now - this.stateEnteredAt >= CombatCleanupTimeout
+            && (targets.Count > 0 || this.IsCombatEngaged()))
+        {
+            this.StopNavigationOperation();
+            this.AddDiagnostic(
+                DiagnosticSeverity.Warning,
+                $"战后清场已持续 {(now - this.stateEnteredAt).TotalSeconds:0.#} 秒，仍有残余战斗状态；执行一次伊弗利特副本进退重置");
+            this.BeginAggroDutyReset(now);
+            return;
+        }
         if (this.cleanupContinuation == CleanupContinuation.PreemptTravel)
         {
             if (this.preemptSyncFateId is { } syncFateId)
@@ -6126,25 +6561,21 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        IBattleNpc? current = this.cleanupTargetId is { } rememberedId
-            ? targets.FirstOrDefault(target => target.GameObjectId == rememberedId)
-            : null;
-        current ??= targets.FirstOrDefault();
+        IBattleNpc? current = this.combatTargets.ChooseCleanup(targets);
         if (current is not null)
         {
             this.ResetCombatEscapeState();
-            if (this.cleanupTargetId != current.GameObjectId)
+            if (this.combatTargets.CleanupTargetId != current.GameObjectId)
                 this.AddDiagnostic(DiagnosticSeverity.Information, $"战后清场目标 → {current.GameObjectId:X}");
-            this.cleanupTargetId = current.GameObjectId;
-            if (!this.TrySelectCombatTarget(current, now))
+            this.combatTargets.CleanupTargetId = current.GameObjectId;
+            if (!this.ApproachAndSelectTarget(current, player, now, alreadyEngaged: true))
                 return;
-            this.StopNavigationOperation();
-            this.statusReason = $"战后清场：等待外部战斗插件击杀 {current.Name}，剩余 {targets.Count} 个目标";
+            this.statusReason = $"战后清场：由外部战斗插件击杀 {current.Name}，剩余 {targets.Count} 个目标";
             this.nextActionAt = now.AddMilliseconds(250);
             return;
         }
 
-        this.cleanupTargetId = null;
+        this.combatTargets.CleanupTargetId = null;
         this.ClearTarget();
         if (this.condition[ConditionFlag.InCombat])
         {
@@ -6206,9 +6637,8 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void HandleCombatEscape(DateTime now, IPlayerCharacter player, bool immediate = false)
     {
-        if (this.cleanupNoTargetSince == DateTime.MinValue)
+        if (this.combatMovement.BeginEscapeWait(now, immediate))
         {
-            this.cleanupNoTargetSince = immediate ? now - CombatEscapeGracePeriod : now;
             this.StopNavigationOperation();
             this.AddDiagnostic(
                 DiagnosticSeverity.Warning,
@@ -6219,20 +6649,18 @@ public sealed unsafe class FateAutomationController : IDisposable
                     : "清场未发现仇恨对象但仍在战斗，先原地等待 5 秒尝试自然脱战");
         }
 
-        TimeSpan graceElapsed = now - this.cleanupNoTargetSince;
-        if (graceElapsed < CombatEscapeGracePeriod)
+        TimeSpan graceRemaining = this.combatMovement.EscapeGraceRemaining(now);
+        if (graceRemaining > TimeSpan.Zero)
         {
             this.StopNavigationOperation();
-            double graceRemaining = CombatEscapeGracePeriod.TotalSeconds - graceElapsed.TotalSeconds;
-            this.statusReason = $"未发现仇恨对象，原地等待自然脱战；{Math.Ceiling(graceRemaining)} 秒后开始跑离";
+            this.statusReason = $"未发现仇恨对象，原地等待自然脱战；{Math.Ceiling(graceRemaining.TotalSeconds)} 秒后开始跑离";
             this.nextActionAt = now.AddMilliseconds(250);
             return;
         }
 
-        if (this.cleanupEscapeStartedAt == DateTime.MinValue)
+        if (!this.combatMovement.EscapeStarted)
         {
-            this.cleanupEscapeStartedAt = now;
-            this.cleanupEscapeDestination = this.FindCombatEscapeDestination(player);
+            this.BeginCombatEscapeMovement(now, player);
             this.ResetNavigationProgress();
             this.AddDiagnostic(
                 DiagnosticSeverity.Warning,
@@ -6241,11 +6669,11 @@ public sealed unsafe class FateAutomationController : IDisposable
                     : $"原地等待 5 秒后仍在战斗，开始跑离 {this.configuration.CombatEscapeDistance:0} yalms");
         }
 
-        TimeSpan escapeElapsed = now - this.cleanupEscapeStartedAt;
-        if (escapeElapsed >= TimeSpan.FromSeconds(this.configuration.CombatEscapeTimeoutSeconds))
+        if (this.combatMovement.IsEscapeTimedOut(now))
         {
             this.StopNavigationOperation();
-            this.BeginAggroDutyReset(now);
+            this.statusReason = "跑离阶段已超时，等待战后清场 30 秒总时限";
+            this.nextActionAt = now.AddMilliseconds(250);
             return;
         }
 
@@ -6256,50 +6684,32 @@ public sealed unsafe class FateAutomationController : IDisposable
             return;
         }
 
-        Vector3 destination = this.cleanupEscapeDestination ?? player.Position;
-        float distance = Vector3.Distance(player.Position, destination);
-        if (distance > 3f)
+        Vector3 destination = this.combatMovement.EscapeDestination ?? player.Position;
+        if (this.combatMovement.ShouldMoveToEscapeDestination(player.Position))
         {
             _ = this.TryIssueNavigationRequest(now, NavigationPurpose.CombatEscape, destination, fly: false);
         }
 
-        double remaining = this.configuration.CombatEscapeTimeoutSeconds - escapeElapsed.TotalSeconds;
-        this.statusReason = $"未发现仇恨对象，正在跑离尝试脱战；{Math.Ceiling(remaining)} 秒后使用泰坦歼灭战重置";
+        this.statusReason = $"未发现仇恨对象，正在跑离尝试脱战；清场总计时达到 30 秒后使用伊弗利特歼灭战重置";
         this.nextActionAt = now.AddMilliseconds(250);
     }
 
-    private Vector3 FindCombatEscapeDestination(IPlayerCharacter player)
+    private void BeginCombatEscapeMovement(DateTime now, IPlayerCharacter player)
     {
-        // During a priority-FATE preemption activeFateId already points at the new
-        // destination.  Keep using the old combat area's origin so the escape vector
-        // cannot accidentally send the player toward the newly selected FATE.
-        Vector3 origin = this.cleanupEscapeOrigin
+        Vector3 origin = this.combatMovement.EscapeOrigin
             ?? this.pendingFateResult?.Fate.Position
             ?? (this.activeFateId is { } fateId ? this.fates.Find(fateId)?.Position : null)
             ?? player.Position;
-        Vector2 away = new(player.Position.X - origin.X, player.Position.Z - origin.Z);
-        if (away.LengthSquared() < 0.01f)
-        {
-            float angle = ((this.pendingFateResult?.Fate.FateId ?? this.activeFateId ?? 1) % 16) * (MathF.PI / 8f);
-            away = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-        }
-        else
-        {
-            away = Vector2.Normalize(away);
-        }
-
-        Vector3 requested = new(
-            player.Position.X + (away.X * this.configuration.CombatEscapeDistance),
-            player.Position.Y,
-            player.Position.Z + (away.Y * this.configuration.CombatEscapeDistance));
-        return this.vnavmesh.FindNearestReachablePoint(requested, 30f, 100f) ?? requested;
+        Vector3 requested = this.combatMovement.BeginEscape(
+            now, player.Position, origin, this.pendingFateResult?.Fate.FateId ?? this.activeFateId ?? 1);
+        this.combatMovement.ResolveEscapeDestination(this.vnavmesh.FindNearestReachablePoint(requested, 30f, 100f));
     }
 
     private void BeginAggroDutyReset(DateTime now, bool manual = false)
     {
         if (this.partyList.Length > 1)
         {
-            const string reason = "当前处于小队中；为避免带其他玩家进入副本，已拒绝泰坦仇恨重置。";
+            const string reason = "当前处于小队中；为避免带其他玩家进入副本，已拒绝伊弗利特仇恨重置。";
             if (manual)
                 this.FinishManualDutyRoundTrip(false, reason);
             else
@@ -6310,9 +6720,9 @@ public sealed unsafe class FateAutomationController : IDisposable
         if (!this.dutyAggroReset.Validate(out string validationError))
         {
             if (manual)
-                this.FinishManualDutyRoundTrip(false, $"无法执行泰坦副本进退：{validationError}");
+                this.FinishManualDutyRoundTrip(false, $"无法执行伊弗利特副本进退：{validationError}");
             else
-                this.Pause($"无法执行泰坦仇恨重置：{validationError}");
+                this.Pause($"无法执行伊弗利特仇恨重置：{validationError}");
             return;
         }
 
@@ -6332,8 +6742,8 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.Transition(
             AutomationState.ResettingAggroViaDuty,
             manual
-                ? "手动执行：准备以解除限制进入泰坦歼灭战并立即退出"
-                : "跑离后仍未脱战，准备以解除限制进入泰坦歼灭战",
+                ? "手动执行：准备以解除限制进入伊弗利特歼灭战并立即退出"
+                : "准备以解除限制进入伊弗利特歼灭战",
             DiagnosticSeverity.Warning);
     }
 
@@ -6343,19 +6753,19 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             this.dutyAggroReset.CancelOwnedQueue();
             if (this.manualDutyRoundTrip)
-                this.FinishManualDutyRoundTrip(false, "手动泰坦副本进退在 180 秒内未完成");
+                this.FinishManualDutyRoundTrip(false, "手动伊弗利特副本进退在 180 秒内未完成");
             else
-                this.Pause("泰坦仇恨重置在 180 秒内未完成。");
+                this.Pause("伊弗利特仇恨重置在 180 秒内未完成。");
             return;
         }
 
         if (this.IsBetweenAreas() || now < this.territoryStableAfter)
         {
-            this.statusReason = "泰坦仇恨重置等待区域加载稳定";
+            this.statusReason = "伊弗利特仇恨重置等待区域加载稳定";
             return;
         }
 
-        if (this.dutyAggroReset.IsInTitanDuty)
+        if (this.dutyAggroReset.IsInIfritDuty)
         {
             if (this.dutyResetPhase is not AggroDutyResetPhase.LeavingDuty and not AggroDutyResetPhase.WaitingForReturn)
             {
@@ -6366,11 +6776,11 @@ public sealed unsafe class FateAutomationController : IDisposable
             if (this.dutyResetPhase == AggroDutyResetPhase.LeavingDuty
                 && now - this.dutyResetLastActionAt >= TimeSpan.FromSeconds(2))
             {
-                bool sent = this.dutyAggroReset.TryLeaveTitan();
+                bool sent = this.dutyAggroReset.TryLeaveIfrit();
                 this.dutyResetLastActionAt = now;
                 string commandResults = $"816={this.dutyAggroReset.LastFinishTerritoryTransportResult}, 819={this.dutyAggroReset.LastLeaveDutyResult}";
                 this.statusReason = sent
-                    ? $"已请求退出泰坦歼灭战，等待返回原区域（{commandResults}）"
+                    ? $"已请求退出伊弗利特歼灭战，等待返回原区域（{commandResults}）"
                     : $"退出副本请求未被接受，准备重试（{commandResults}）";
                 this.AddDiagnostic(sent ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning, this.statusReason);
                 if (sent)
@@ -6383,14 +6793,14 @@ public sealed unsafe class FateAutomationController : IDisposable
                     // Command 819 can be accepted by the client while the duty UI is still
                     // closing. Retry it until the territory actually unloads; previously the
                     // state stayed in WaitingForReturn forever after a single accepted command.
-                    bool retrySent = this.dutyAggroReset.TryLeaveTitan();
+                    bool retrySent = this.dutyAggroReset.TryLeaveIfrit();
                     this.dutyResetLastActionAt = now;
                     string retryResults = $"816={this.dutyAggroReset.LastFinishTerritoryTransportResult}, 819={this.dutyAggroReset.LastLeaveDutyResult}";
                     this.AddDiagnostic(
                         retrySent ? DiagnosticSeverity.Information : DiagnosticSeverity.Warning,
-                        $"泰坦副本仍未退出，重试退出命令：结果={retrySent}（{retryResults}，Territory={this.clientState.TerritoryType}）");
+                        $"伊弗利特副本仍未退出，重试退出命令：结果={retrySent}（{retryResults}，Territory={this.clientState.TerritoryType}）");
                 }
-                this.statusReason = "退出命令已发送，等待泰坦副本区域卸载";
+                this.statusReason = "退出命令已发送，等待伊弗利特副本区域卸载";
             }
             return;
         }
@@ -6402,7 +6812,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             if (this.clientState.TerritoryType != this.dutyResetOriginTerritory)
             {
-                this.statusReason = $"已退出泰坦歼灭战，等待返回原 Territory {this.dutyResetOriginTerritory}";
+                this.statusReason = $"已退出伊弗利特歼灭战，等待返回原 Territory {this.dutyResetOriginTerritory}";
                 return;
             }
 
@@ -6420,7 +6830,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             this.dutyAggroReset.CancelOwnedQueue();
             this.dutyResetPhase = AggroDutyResetPhase.None;
             this.ResetCombatEscapeState();
-            this.Transition(AutomationState.CleaningUpCombat, "副本进入前已自然脱战，取消泰坦重置");
+            this.Transition(AutomationState.CleaningUpCombat, "副本进入前已自然脱战，取消伊弗利特重置");
             return;
         }
 
@@ -6429,7 +6839,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             if (queueState != ContentsFinderQueueState.None)
             {
-                string queueConflictReason = $"检测到非 AutoFatre 的副本队列（{queueState}），已拒绝执行泰坦仇恨重置。";
+                string queueConflictReason = $"检测到非 AutoFatre 的副本队列（{queueState}），已拒绝执行伊弗利特仇恨重置。";
                 if (this.manualDutyRoundTrip)
                     this.FinishManualDutyRoundTrip(false, queueConflictReason);
                 else
@@ -6439,7 +6849,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
             if (!this.dutyAggroReset.TryQueueUnrestricted(out string reason))
             {
-                this.statusReason = $"泰坦解限进入请求暂未成功：{reason}";
+                this.statusReason = $"伊弗利特解限进入请求暂未成功：{reason}";
                 this.nextActionAt = now.AddSeconds(2);
                 return;
             }
@@ -6453,7 +6863,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         if (this.dutyAggroReset.TryCommence())
         {
-            this.statusReason = "已确认进入泰坦歼灭战，等待区域切换";
+            this.statusReason = "已确认进入伊弗利特歼灭战，等待区域切换";
             this.dutyResetLastActionAt = now;
             this.nextActionAt = now.AddSeconds(1);
             return;
@@ -6464,12 +6874,12 @@ public sealed unsafe class FateAutomationController : IDisposable
         {
             this.dutyAggroReset.TryQueueUnrestricted(out string retryReason);
             this.dutyResetLastActionAt = now;
-            this.statusReason = $"泰坦解限队列尚未建立，正在重试：{retryReason}";
+            this.statusReason = $"伊弗利特解限队列尚未建立，正在重试：{retryReason}";
             this.nextActionAt = now.AddSeconds(1);
             return;
         }
 
-        this.statusReason = $"等待泰坦歼灭战进入确认（队列状态 {queueState}）";
+        this.statusReason = $"等待伊弗利特歼灭战进入确认（队列状态 {queueState}）";
         this.nextActionAt = now.AddMilliseconds(500);
     }
 
@@ -6493,8 +6903,12 @@ public sealed unsafe class FateAutomationController : IDisposable
         }
 
         ushort completedId = result.Fate.FateId;
-        bool temporaryTargetCompleted = this.temporaryTargetActive
+        bool temporaryTargetMatched = this.temporaryTargetActive
             && this.temporaryTargetFateId == completedId;
+        if (temporaryTargetMatched && result.Succeeded)
+            this.temporaryTargetCompletedCount++;
+        bool temporaryTargetCompleted = temporaryTargetMatched
+            && this.temporaryTargetCompletedCount >= this.temporaryTargetRequiredCount;
         if (result.Succeeded)
         {
             this.AddDiagnostic(
@@ -6508,7 +6922,20 @@ public sealed unsafe class FateAutomationController : IDisposable
         }
 
         if (temporaryTargetCompleted)
+        {
+            this.singleFateResult = "Completed";
             this.RestoreTemporaryTarget("临时目标 FATE 已完成并从列表移除");
+        }
+
+        if (temporaryTargetMatched && result.Succeeded && !temporaryTargetCompleted)
+        {
+            this.ResetCurrentActivity();
+            this.BeginCompanionCheckpoint(
+                CompanionCheckpointKind.PostFate,
+                AutomationState.ScanningFates,
+                $"临时目标 FATE 已完成 {this.temporaryTargetCompletedCount}/{this.temporaryTargetRequiredCount}，继续执行");
+            return;
+        }
 
         if (temporaryTargetCompleted && !this.configuration.Enabled)
         {
@@ -6544,6 +6971,75 @@ public sealed unsafe class FateAutomationController : IDisposable
         return maps[Math.Clamp(this.presetIndex, 0, maps.Count - 1)].StopConditions;
     }
 
+    private bool CanObserveMap(DateTime now) => this.configuration.Enabled
+        && !this.navigationOnlyRequested && !this.manualDutyRoundTrip
+        && this.state is not AutomationState.Stopped and not AutomationState.Paused and not AutomationState.Faulted
+            and not AutomationState.DeadWaitingForRaise and not AutomationState.DeadReturning
+            and not AutomationState.ResettingAggroViaDuty
+        && this.clientState.IsLoggedIn && this.playerState.IsLoaded && this.objectTable.LocalPlayer is not null
+        && !this.IsBetweenAreas() && now >= this.territoryStableAfter
+        && !this.condition[ConditionFlag.Unconscious];
+
+    private void ObserveMapAlertsAndStopTimer(DateTime now)
+    {
+        bool canObserve = this.CanObserveMap(now);
+        bool waitingOnMap = canObserve && this.fates.IsAvailable
+            && this.configuration.Mode == AutomationMode.PresetSequence
+            && this.GetCurrentPresetStopConditions().Any(stop => stop.Kind == StopConditionKind.NoFates)
+            && this.clientState.TerritoryType == this.GetCurrentPlan().TerritoryId
+            && this.activeFateId is null && this.pendingFateResult is null
+            && this.mapReentryTerritory is null && !this.condition[ConditionFlag.InCombat]
+            && this.state is AutomationState.ScanningFates or AutomationState.CheckingCompanions;
+        this.noFateStopTimer.Observe(now, this.presetIndex, this.clientState.TerritoryType,
+            GetPublicInstanceId(), waitingOnMap, this.fates.Snapshot.Count != 0);
+
+        if (!canObserve || !this.configuration.EnableSoundAlerts)
+        {
+            this.fateAlertTracking.ResetPlayers();
+            this.pendingSoundAlerts.Clear();
+            return;
+        }
+
+        if (this.configuration.SoundAlertGemstonesFullEffectId != 0)
+        {
+            // CurrencyManager carries both the server-provided count and cap; no fixed cap.
+            CurrencyManager* currency = CurrencyManager.Instance();
+            if (currency is not null && currency->ItemBucket.TryGetValue(26807, out var gemstones, copyCtor: false)
+                && !gemstones.IsUnlimited
+                && this.fateAlertTracking.ObserveGemstones(
+                    gemstones.Count,
+                    gemstones.MaxCount,
+                    (uint)this.configuration.SoundAlertGemstonesThreshold))
+                this.pendingSoundAlerts.Add("双色宝石达到阈值");
+        }
+
+        if (!this.fates.IsAvailable || this.configuration.SoundAlertPlayerEnteredEffectId == 0)
+        {
+            this.fateAlertTracking.ResetPlayers();
+            this.pendingSoundAlerts.Remove("FATE 范围内新增玩家");
+            return;
+        }
+
+        IPlayerCharacter player = this.objectTable.LocalPlayer!;
+        NativeFateManager* manager = NativeFateManager.Instance();
+        ushort current = manager is null || manager->CurrentFate is null ? (ushort)0 : manager->GetCurrentFateId();
+        FateSnapshot? fate = this.fates.Find(current) ?? (this.activeFateId is { } id ? this.fates.Find(id) : null);
+        if (fate is null || !FateAlertTracking.IsInRange(player.Position, fate.Position, fate.Radius))
+        {
+            this.fateAlertTracking.ResetPlayers();
+            this.pendingSoundAlerts.Remove("FATE 范围内新增玩家");
+            return;
+        }
+
+        FateOccurrence occurrence = new(this.clientState.TerritoryType, GetPublicInstanceId(), fate.FateId, fate.StartTimeEpoch);
+        ulong[] players = this.objectTable.OfType<IPlayerCharacter>()
+            .Where(other => other.GameObjectId != player.GameObjectId
+                && FateAlertTracking.IsInRange(other.Position, fate.Position, fate.Radius))
+            .Select(other => other.GameObjectId).ToArray();
+        if (this.fateAlertTracking.ObservePlayers(occurrence, players))
+            this.pendingSoundAlerts.Add("FATE 范围内新增玩家");
+    }
+
     private bool CheckPresetStopCondition(ushort? justCompletedFateId = null, bool logUnmet = false)
     {
         IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
@@ -6556,7 +7052,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
         bool met = conditions.All(stop =>
         {
-            int target = Math.Max(1, stop.Kind == StopConditionKind.ItemCount ? stop.ItemCount : stop.FateCount);
+            int target = stop.RequiredProgress;
             int actual;
             bool satisfied;
             switch (stop.Kind)
@@ -6573,6 +7069,15 @@ public sealed unsafe class FateAutomationController : IDisposable
                     actual = this.ExpandFateSelection(stop.TargetFateId)
                         .Sum(fateId => this.presetTargetFateCounts.GetValueOrDefault(fateId));
                     satisfied = actual >= target;
+                    break;
+                case StopConditionKind.NoFates:
+                    actual = this.noFateStopTimer.ElapsedSeconds;
+                    satisfied = this.CanObserveMap(DateTime.UtcNow) && this.fates.IsAvailable
+                        && this.clientState.TerritoryType == this.GetCurrentPlan().TerritoryId
+                        && this.mapReentryTerritory is null && !this.condition[ConditionFlag.InCombat]
+                        && this.activeFateId is null && this.pendingFateResult is null
+                        && this.state is AutomationState.ScanningFates or AutomationState.CheckingCompanions
+                        && this.fates.Snapshot.Count == 0 && actual >= target;
                     break;
                 default:
                     actual = 0;
@@ -6609,6 +7114,7 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void AdvancePreset()
     {
+        this.noFateStopTimer.Reset();
         this.CancelOwnedActions();
         this.ResetCurrentActivity();
         this.ClearCurrentMapTerritory();
@@ -6619,6 +7125,8 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.presetCompletedFates = 0;
         this.presetTargetFateCounts.Clear();
         this.presetIndex++;
+        this.fateCompletions.AdvanceScope();
+        this.PublishFateRewardContext();
         if (this.presetIndex < this.GetPresetMaps().Count)
         {
             MapPreset next = this.GetPresetMaps()[this.presetIndex];
@@ -6648,12 +7156,11 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.AddDiagnostic(DiagnosticSeverity.Warning, $"{reason}（恢复 {this.recoveryAttempts}/{this.configuration.MaxRecoveryAttempts}）");
         if (this.recoveryAttempts > this.configuration.MaxRecoveryAttempts)
         {
-            if (!required && this.activeFateId is { } fateId)
+            if (this.activeFateId is not null)
             {
                 if (this.ResolveActiveFate() is { } failedFate)
-                    this.RecordFateFailure(failedFate, reason.Contains("导航", StringComparison.Ordinal) ? "寻路失败" : "流程失败", reason);
-                this.skippedFates[fateId] = DateTime.UtcNow.AddSeconds(60);
-                this.AbandonActiveFate($"普通 FATE 恢复耗尽，跳过 60 秒：{reason}");
+                    this.RecordFateFailure(failedFate, reason.Contains("导航", StringComparison.Ordinal) ? "寻路失败" : "流程失败", reason, applyCooldown: false);
+                this.BeginMapReentry($"FATE 恢复次数耗尽：{reason}");
             }
             else
             {
@@ -6682,6 +7189,7 @@ public sealed unsafe class FateAutomationController : IDisposable
                 {
                     AutomationState.MountingForTravel => AutomationState.MountingForTravel,
                     AutomationState.LandingForFate => AutomationState.LandingForFate,
+                    AutomationState.RepositioningForLanding => AutomationState.RepositioningForLanding,
                     AutomationState.DismountingForFate => AutomationState.DismountingForFate,
                     AutomationState.ReturningToFateArea => AutomationState.ReturningToFateArea,
                     _ => AutomationState.NavigatingToFate,
@@ -6700,6 +7208,7 @@ public sealed unsafe class FateAutomationController : IDisposable
             && this.state is AutomationState.MountingForTravel
                 or AutomationState.NavigatingToFate
                 or AutomationState.LandingForFate
+                or AutomationState.RepositioningForLanding
                 or AutomationState.DismountingForFate
                 or AutomationState.CheckingCompanions
                 or AutomationState.OpeningPreparingFate
@@ -6715,6 +7224,8 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private bool IsEligible(FateSnapshot fate, DateTime now) =>
         (fate.State == FateState.Running && fate.TimeRemaining > 0 || IsPreparingFate(fate))
+        && !FateCompletionTracking.IsComplete(fate)
+        && !this.fateCompletions.WasNotified(this.clientState.TerritoryType, GetPublicInstanceId(), fate)
         && !this.configuration.FateBlacklist.Contains(fate.FateId)
         && fate.IsAutomationSupported
         && FateRepository.HasValidPosition(fate)
@@ -6998,12 +7509,20 @@ public sealed unsafe class FateAutomationController : IDisposable
     {
         foreach (ushort id in this.skippedFates.Where(x => x.Value <= now).Select(x => x.Key).ToArray())
             this.skippedFates.Remove(id);
-        foreach (ulong id in this.skippedTargets.Where(x => x.Value <= now).Select(x => x.Key).ToArray())
-            this.skippedTargets.Remove(id);
+        this.combatTargets.RemoveExpiredCooldowns(now);
     }
 
-    private void ResetCurrentActivity()
+    private void ResetCurrentActivity(bool preserveMapReentry = false)
     {
+        this.preSyncPosition = null;
+        this.preSyncDiagnosticAt = DateTime.MinValue;
+        this.landingRecoveryAttempts = 0;
+        this.landingRecoveryDestination = null;
+        if (!preserveMapReentry)
+        {
+            this.mapReentryTerritory = null;
+            this.mapReentryTeleportRequired = false;
+        }
         this.deathRecordedFateId = null;
         this.activeFateId = null;
         this.groundTravelToActiveFate = false;
@@ -7012,23 +7531,17 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.preparationTalkStartedAt = DateTime.MinValue;
         this.preparationTalkCallbackAttempts = 0;
         this.preparationTextAdvanceEnabled = false;
-        this.pullTargetId = null;
-        this.killTargetId = null;
-        this.lostPriorityTargetId = null;
-        this.lostPriorityTargetKind = null;
+        this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
-        this.destroySession.Reset();
-        this.bossTargetId = null;
         this.bossCleanupFateId = null;
-        this.bossCleanupTargetId = null;
+        this.combatTargets.BossCleanupTargetId = null;
         this.bossCleanupNoTargetSince = DateTime.MinValue;
         this.bossCancelSyncStartedAt = DateTime.MinValue;
         this.bossEnvironmentLogAt = DateTime.MinValue;
         this.bossPreCombatCleanupChecked = false;
         this.ResetPullBatch();
-        this.escortFollowLastRequestAt = DateTime.MinValue;
-        this.escortFollowLastPosition = null;
-        this.cleanupTargetId = null;
+        this.combatMovement.ResetEscort();
+        this.combatTargets.CleanupTargetId = null;
         this.pendingFateResult = null;
         this.ResetFailedTeleportCandidates();
         this.fateAetheryteTeleportPlan = null;
@@ -7039,15 +7552,13 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.aggroCount = 0;
         this.recoveryAttempts = 0;
         this.levelSyncAttempts = 0;
-        this.outsideFateAreaSince = DateTime.MinValue;
+        this.combatMovement.ResetAreaReturn();
+        this.returnAreaResumeState = null;
         this.travelObservationDelayPending = false;
         this.presetConditionRecheckUntil = DateTime.MinValue;
         this.fateParticipationSince = DateTime.MinValue;
         this.fallbackLandingForParticipation = false;
-        this.completedProgressObservedAt = DateTime.MinValue;
         this.activeFateParticipationObserved = false;
-        this.terminalFateObservedAt = DateTime.MinValue;
-        this.terminalFateState = null;
         this.completedCollectionObjects.Clear();
         this.collectionFateId = null;
         this.collectionItemId = 0;
@@ -7078,9 +7589,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.dutyResetPhase = AggroDutyResetPhase.None;
         this.ResetManualDutyRoundTripState();
         this.ResetNavigationProgress();
-        this.selectingTargetId = null;
-        this.targetSelectionMoving = false;
-        this.targetSelectionFailedAt = DateTime.MinValue;
+        this.combatMovement.ResetTargetSelection();
         this.preparingGroundArrivalPending = false;
         this.navigationOnlyRequested = false;
         this.navigationOnlyFateId = null;
@@ -7101,19 +7610,13 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void ResetPullBatch()
     {
-        this.pullBatchTargets.Clear();
+        this.combatTargets.ResetBatch();
         this.pullBatchEmptySince = DateTime.MinValue;
-        this.pullTargetKind = PullTargetKind.Normal;
+
         this.ResetPullApproach();
     }
 
-    private void ResetCombatEscapeState()
-    {
-        this.cleanupNoTargetSince = DateTime.MinValue;
-        this.cleanupEscapeStartedAt = DateTime.MinValue;
-        this.cleanupEscapeDestination = null;
-        this.cleanupEscapeOrigin = null;
-    }
+    private void ResetCombatEscapeState() => this.combatMovement.ResetEscape();
 
     private void ResetManualDutyRoundTripState()
     {
@@ -7152,11 +7655,12 @@ public sealed unsafe class FateAutomationController : IDisposable
 
     private void CancelOwnedActions()
     {
+        this.companionChocoboActionPending = false;
         this.StopNavigationOperation();
         this.landing.StopDescending();
         this.dutyAggroReset.CancelOwnedQueue();
-        if (this.state == AutomationState.ResettingAggroViaDuty && this.dutyAggroReset.IsInTitanDuty)
-            this.dutyAggroReset.TryLeaveTitan();
+        if (this.state == AutomationState.ResettingAggroViaDuty && this.dutyAggroReset.IsInIfritDuty)
+            this.dutyAggroReset.TryLeaveIfrit();
         if (this.teleportIssuedByUs)
         {
             this.lifestream.Abort();
@@ -7220,12 +7724,6 @@ public sealed unsafe class FateAutomationController : IDisposable
         return MathF.Sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
     }
 
-    private bool IsInsideFateCombatRange(IBattleNpc target, FateSnapshot fate)
-    {
-        float radius = Math.Max(6f, fate.Radius) + FateCombatRangePadding;
-        return HorizontalDistance(target.Position, fate.Position) <= radius;
-    }
-
     private void LogOutOfRangeFateTargets(
         DateTime now,
         FateSnapshot fate,
@@ -7248,7 +7746,7 @@ public sealed unsafe class FateAutomationController : IDisposable
         this.AddDiagnostic(
             DiagnosticSeverity.Debug,
             $"FATE #{fate.FateId} 拉怪候选范围过滤：全部敌人={allEnemies.Count}，范围内={inRangeEnemies.Count}，" +
-            $"允许范围={Math.Max(6f, fate.Radius) + FateCombatRangePadding:0.0}（FATE半径+{FateCombatRangePadding:0}）；范围外不纳入候选；{excluded}");
+            $"允许范围={Math.Max(6f, fate.Radius) + CombatTargetSelection.CombatRangePadding:0.0}（FATE半径+{CombatTargetSelection.CombatRangePadding:0}）；范围外不纳入候选；{excluded}");
     }
 
     private static unsafe bool IsPlayerInFate(ushort fateId)
@@ -7266,6 +7764,13 @@ public sealed unsafe class FateAutomationController : IDisposable
         bool logTransition = true)
     {
         bool changed = this.state != next;
+        if (changed && next == AutomationState.WaitingForLevelSync)
+        {
+            this.preSyncPosition = null;
+            this.preSyncDiagnosticAt = DateTime.MinValue;
+        }
+        if (changed && this.travelSessionActive && this.travelPurpose == NavigationPurpose.PreSyncPosition)
+            this.StopNavigationOperation();
         if (!changed && this.statusReason == reason)
             return;
         this.state = next;
@@ -7301,14 +7806,12 @@ public sealed unsafe class FateAutomationController : IDisposable
         }
     }
 
-    private void PlaySoundAlert(string reason)
+    private bool PlaySoundAlert(string reason)
     {
         if (!this.configuration.EnableSoundAlerts)
-            return;
+            return true;
 
         DateTime now = DateTime.UtcNow;
-        if (now < this.soundAlertCooldownUntil)
-            return;
 
         try
         {
@@ -7318,18 +7821,25 @@ public sealed unsafe class FateAutomationController : IDisposable
                 var value when value.Contains("FATE 完成", StringComparison.Ordinal) => this.configuration.SoundAlertFateCompletedEffectId,
                 var value when value.Contains("角色死亡", StringComparison.Ordinal) => this.configuration.SoundAlertDeathEffectId,
                 var value when value.Contains("导航恢复耗尽", StringComparison.Ordinal) => this.configuration.SoundAlertNavigationSkippedEffectId,
+                "FATE 范围内新增玩家" => this.configuration.SoundAlertPlayerEnteredEffectId,
+                "双色宝石达到阈值" => this.configuration.SoundAlertGemstonesFullEffectId,
                 _ => this.configuration.SoundAlertEffectId,
             };
             if (effectId == 0)
-                return;
+                return true;
+
+            if (this.soundAlertCooldowns.TryGetValue(reason, out DateTime cooldown) && now < cooldown)
+                return false;
 
             this.soundAlerts.Play(effectId);
-            this.soundAlertCooldownUntil = now.AddSeconds(this.configuration.SoundAlertCooldownSeconds);
+            this.soundAlertCooldowns[reason] = now.AddSeconds(this.configuration.SoundAlertCooldownSeconds);
             this.AddDiagnostic(DiagnosticSeverity.Debug, $"已播放游戏内置音效（{reason}，音效 {effectId}）");
+            return true;
         }
         catch (Exception ex)
         {
             this.log.Warning(ex, "播放游戏内置音效失败：{Reason}", reason);
+            return true;
         }
     }
 

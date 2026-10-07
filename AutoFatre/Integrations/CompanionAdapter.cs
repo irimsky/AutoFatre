@@ -191,6 +191,20 @@ public sealed unsafe class CompanionAdapter(
         return success;
     }
 
+    /// <summary>Returns whether the companion represented by a configured item is already active.</summary>
+    public bool IsMinionItemActive(uint itemId)
+    {
+        if (itemId == 0)
+            return false;
+
+        Companion? companionRow = dataManager.GetExcelSheet<Item>()
+            .GetRowOrDefault(itemId)
+            ?.ItemAction.ValueNullable is { } itemAction
+            ? dataManager.GetExcelSheet<Companion>().GetRowOrDefault(itemAction.Data[0])
+            : null;
+        return companionRow is { } row && this.CurrentMinionId == row.RowId;
+    }
+
     public bool TryEquipRecommended()
     {
         RecommendEquipModule* module = RecommendEquipModule.Instance();

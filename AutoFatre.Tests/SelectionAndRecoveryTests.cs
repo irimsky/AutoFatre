@@ -13,6 +13,32 @@ public sealed class SelectionAndRecoveryTests
     }
 
     [Theory]
+    [InlineData(1293u, 1730u, true)]
+    [InlineData(1293u, 0u, true)]
+    [InlineData(0u, 1730u, true)]
+    [InlineData(749u, 662u, false)]
+    [InlineData(750u, 663u, false)]
+    [InlineData(0u, 0u, false)]
+    public void IdentityCatalog_ColonizationTimberDoesNotMatchIxal(uint baseId, uint nameId, bool expected)
+    {
+        Assert.True(FateObjectiveIdentityCatalog.TryGetDestroyObjectives(498, out var identities));
+        Assert.Equal(expected, identities.Any(identity => identity.Matches(baseId, nameId)));
+    }
+
+    [Fact]
+    public void DestroySession_RemainingColonizationTimberKeepsPriorityOverLowHpIxal()
+    {
+        DestroyObjectiveSession session = new();
+        CombatCandidate timber = new(0x4003E8EE, 2173, 34.5f * 34.5f);
+        CombatCandidate[] ixal = [new(1, 1, 1), new(2, 10, 4), new(3, 20, 9), new(4, 30, 16)];
+
+        Assert.Equal(new DestroyDecision(DestroyAction.Destroy, timber.Id), session.Choose([timber], ixal));
+        Assert.Equal(new DestroyDecision(DestroyAction.Destroy, timber.Id), session.Choose([timber], ixal));
+        Assert.False(session.ClearingAggro);
+        Assert.Equal(DestroyAction.Fallback, session.Choose([], ixal).Action);
+    }
+
+    [Theory]
     [InlineData(1000f, 100f, true)]
     [InlineData(200f, 100f, false)]
     public void AetherytePlanner_UsesTeleportCostThreshold(

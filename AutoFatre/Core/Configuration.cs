@@ -32,6 +32,7 @@ public enum StopConditionKind
     FateCount,
     ItemCount,
     TargetFate,
+    NoFates,
 }
 
 public sealed class StopCondition
@@ -41,6 +42,15 @@ public sealed class StopCondition
     public uint ItemId { get; set; }
     public int ItemCount { get; set; } = 1;
     public ushort TargetFateId { get; set; }
+    public int NoFateSeconds { get; set; } = 5;
+
+    [Newtonsoft.Json.JsonIgnore]
+    public int RequiredProgress => this.Kind switch
+    {
+        StopConditionKind.ItemCount => Math.Max(1, this.ItemCount),
+        StopConditionKind.NoFates => Math.Clamp(this.NoFateSeconds, 3, 10),
+        _ => Math.Max(1, this.FateCount),
+    };
 }
 
 public sealed class MapPreset
@@ -58,8 +68,58 @@ public sealed class MapPreset
     /// <summary>All enabled completion conditions for this map. Conditions are combined with AND.</summary>
     public List<StopCondition> StopConditions { get; set; } = [];
 
+    /// <summary>Completion conditions disabled in the editor, retained so re-enabling restores their values.</summary>
+    public List<StopCondition> RememberedStopConditions { get; set; } = [];
+
     /// <summary>Legacy single-condition field retained only for configuration migration.</summary>
     public StopCondition? StopCondition { get; set; }
+
+    public void SetNoFatesStopCondition(bool enabled)
+    {
+        this.StopConditions ??= [];
+        this.RememberedStopConditions ??= [];
+        if (enabled)
+        {
+            StopCondition noFates = this.StopConditions.FirstOrDefault(stop => stop.Kind == StopConditionKind.NoFates)
+                ?? this.RememberedStopConditions.FirstOrDefault(stop => stop.Kind == StopConditionKind.NoFates)
+                ?? new StopCondition { Kind = StopConditionKind.NoFates };
+            this.RememberedStopConditions.RemoveAll(stop => stop.Kind == StopConditionKind.NoFates);
+            this.RememberedStopConditions.AddRange(this.StopConditions.Where(stop => stop.Kind != StopConditionKind.NoFates));
+            this.StopConditions = [noFates];
+        }
+        else
+        {
+            this.RememberedStopConditions.AddRange(this.StopConditions.Where(stop => stop.Kind == StopConditionKind.NoFates));
+            this.StopConditions.RemoveAll(stop => stop.Kind == StopConditionKind.NoFates);
+        }
+    }
+
+    public bool HasStopCondition(StopConditionKind kind) =>
+        this.StopConditions?.Any(stop => stop.Kind == kind) == true;
+
+    public void SetStopConditionEnabled(StopConditionKind kind, bool enabled)
+    {
+        this.StopConditions ??= [];
+        this.RememberedStopConditions ??= [];
+        if (enabled)
+        {
+            if (this.StopConditions.Any(stop => stop.Kind == kind))
+                return;
+
+            List<StopCondition> remembered = this.RememberedStopConditions
+                .Where(stop => stop.Kind == kind)
+                .ToList();
+            this.RememberedStopConditions.RemoveAll(stop => stop.Kind == kind);
+            if (remembered.Count == 0)
+                remembered.Add(new StopCondition { Kind = kind });
+            this.StopConditions.AddRange(remembered);
+        }
+        else
+        {
+            this.RememberedStopConditions.AddRange(this.StopConditions.Where(stop => stop.Kind == kind));
+            this.StopConditions.RemoveAll(stop => stop.Kind == kind);
+        }
+    }
 }
 
 public sealed class MapPresetSequence
@@ -70,7 +130,7 @@ public sealed class MapPresetSequence
 
 public sealed class AutoFatreConfiguration : IPluginConfiguration
 {
-    public int Version { get; set; } = 18;
+    public int Version { get; set; } = 20;
     // Runtime-only switch. Persisting this value causes a plugin reload to resume automation
     // unexpectedly when the previous instance was still enabled during shutdown.
     [Newtonsoft.Json.JsonIgnore]
@@ -85,12 +145,19 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
     public TargetFateFallbackPolicy TargetFateFallback { get; set; } = TargetFateFallbackPolicy.FarmOtherFates;
     public SequenceCompletionPolicy SequenceCompletion { get; set; } = SequenceCompletionPolicy.Stop;
     public bool FlyToFates { get; set; } = true;
-    public int MaxAggroCount { get; set; } = 4;
+    public int TankMaxAggroCount { get; set; } = 4;
+    public int DpsMaxAggroCount { get; set; } = 3;
+    public int HealerMaxAggroCount { get; set; } = 4;
+    private int? legacyMaxAggroCount;
+    // Read the old shared limit for migration; never write it into new configurations.
+    [Newtonsoft.Json.JsonProperty("MaxAggroCount")]
+    private int? LegacyMaxAggroCount { set => this.legacyMaxAggroCount = value; }
     public PullRefillPolicy PullRefillPolicy { get; set; } = PullRefillPolicy.RefillAtHalf;
     public int MaxRecoveryAttempts { get; set; } = 3;
     public int AggroConfirmationTimeoutSeconds { get; set; } = 8;
     public int SkippedTargetCooldownSeconds { get; set; } = 30;
     public bool PrioritizeLostGirlAndLostOne { get; set; }
+    // Minimum FATE time remaining when first selecting each lost target; existing locks continue.
     public int LostGirlRemainingTimeThresholdSeconds { get; set; } = 180;
     public int LostOneRemainingTimeThresholdSeconds { get; set; } = 240;
     public bool AutoAcceptRaise { get; set; } = true;
@@ -117,6 +184,9 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
     public uint SoundAlertFateCompletedEffectId { get; set; }
     public uint SoundAlertDeathEffectId { get; set; }
     public uint SoundAlertNavigationSkippedEffectId { get; set; }
+    public uint SoundAlertPlayerEnteredEffectId { get; set; }
+    public uint SoundAlertGemstonesFullEffectId { get; set; }
+    public int SoundAlertGemstonesThreshold { get; set; } = 1500;
     public int SoundAlertCooldownSeconds { get; set; } = 3;
     /// <summary>FATE ids which are ignored by automatic selection and target-FATE priority checks.</summary>
     public List<ushort> FateBlacklist { get; set; } = [];
@@ -132,6 +202,15 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
 
     /// <summary>Legacy representation from versions before the map-list model.</summary>
     public List<MapPreset> Presets { get; set; } = [];
+
+    // ClassJob.Role: tank=1, melee/ranged DPS=2/3, healer=4.
+    // A missing/unknown role uses the DPS limit, including the logged-out UI preview.
+    public int GetMaxAggroCount(byte classJobRole) => classJobRole switch
+    {
+        1 => this.TankMaxAggroCount,
+        4 => this.HealerMaxAggroCount,
+        _ => this.DpsMaxAggroCount,
+    };
 
     public void Migrate()
     {
@@ -227,11 +306,20 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
             this.LostOneRemainingTimeThresholdSeconds = 240;
         }
 
+        if (previousVersion < 19 && this.legacyMaxAggroCount is { } legacyLimit)
+        {
+            // Adopt role defaults for the old default of four; preserve lower customized limits.
+            int oldLimit = Math.Clamp(legacyLimit, 1, 4);
+            if (oldLimit != 4)
+                this.TankMaxAggroCount = this.DpsMaxAggroCount = this.HealerMaxAggroCount = oldLimit;
+        }
+        this.legacyMaxAggroCount = null;
+
         if (this.PresetSequences.Count == 0)
             this.PresetSequences.Add(this.PresetSequence);
         this.ActivePresetSequenceIndex = Math.Clamp(this.ActivePresetSequenceIndex, 0, this.PresetSequences.Count - 1);
         this.PresetSequence = this.PresetSequences[this.ActivePresetSequenceIndex];
-        this.Version = 18;
+        this.Version = 20;
     }
 
     public void Normalize()
@@ -248,7 +336,9 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
         foreach (MapPreset map in this.PresetSequences.SelectMany(sequence => sequence.Maps ?? []))
             map.AetheryteId = 0;
 
-        this.MaxAggroCount = Math.Clamp(this.MaxAggroCount, 1, 4);
+        this.TankMaxAggroCount = Math.Clamp(this.TankMaxAggroCount, 1, 6);
+        this.DpsMaxAggroCount = Math.Clamp(this.DpsMaxAggroCount, 1, 6);
+        this.HealerMaxAggroCount = Math.Clamp(this.HealerMaxAggroCount, 1, 6);
         if (!Enum.IsDefined(this.PullRefillPolicy))
             this.PullRefillPolicy = PullRefillPolicy.RefillAtHalf;
         this.MaxRecoveryAttempts = Math.Clamp(this.MaxRecoveryAttempts, 0, 20);
@@ -274,6 +364,9 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
         this.SoundAlertFateCompletedEffectId = Math.Clamp(this.SoundAlertFateCompletedEffectId, 0u, 16u);
         this.SoundAlertDeathEffectId = Math.Clamp(this.SoundAlertDeathEffectId, 0u, 16u);
         this.SoundAlertNavigationSkippedEffectId = Math.Clamp(this.SoundAlertNavigationSkippedEffectId, 0u, 16u);
+        this.SoundAlertPlayerEnteredEffectId = Math.Clamp(this.SoundAlertPlayerEnteredEffectId, 0u, 16u);
+        this.SoundAlertGemstonesFullEffectId = Math.Clamp(this.SoundAlertGemstonesFullEffectId, 0u, 16u);
+        this.SoundAlertGemstonesThreshold = Math.Clamp(this.SoundAlertGemstonesThreshold, 1, 1500);
         this.SoundAlertCooldownSeconds = Math.Clamp(this.SoundAlertCooldownSeconds, 0, 60);
         this.FateBlacklist ??= [];
         this.FateBlacklist = this.FateBlacklist
@@ -308,7 +401,17 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
             foreach (MapPreset map in sequence.Maps)
             {
                 map.StopConditions ??= [];
+                map.RememberedStopConditions ??= [];
                 map.StopConditions.RemoveAll(c => c is null);
+                map.RememberedStopConditions.RemoveAll(c => c is null);
+                // A no-FATE timeout is exclusive, including configurations edited outside the UI.
+                StopCondition? noFates = map.StopConditions.FirstOrDefault(c => c.Kind == StopConditionKind.NoFates);
+                if (noFates is not null)
+                {
+                    noFates.NoFateSeconds = Math.Clamp(noFates.NoFateSeconds, 3, 10);
+                    map.RememberedStopConditions.AddRange(map.StopConditions.Where(c => c.Kind != StopConditionKind.NoFates));
+                    map.StopConditions = [noFates];
+                }
             }
         }
     }

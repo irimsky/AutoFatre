@@ -1,13 +1,15 @@
 using System.Numerics;
 using System.Text;
-using System.Text.Json;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 
 namespace AutoFatre;
 
-public sealed class AutoFatreWindow : IDisposable
+public sealed class AutoFatreWindow : Window, IDisposable
 {
+    internal const float UiFontScale = 1.2f;
     private static readonly Vector4 LabelColor = new(1f, 1f, 1f, 1f);
     private static readonly Vector4 NeutralValueColor = new(0.85f, 0.92f, 1f, 1f);
 
@@ -17,8 +19,8 @@ public sealed class AutoFatreWindow : IDisposable
     private readonly GameDataSelectionCatalog selectionCatalog;
     private readonly InventoryCounter inventoryCounter;
     private readonly Action<bool> setOverlayWindowVisibility;
+    private readonly Action openSettings;
     private readonly Dictionary<string, string> selectorSearch = new(StringComparer.Ordinal);
-    private bool isOpen;
     private bool deathRecordsOpen;
     private bool diagnosticLogOpen;
     private bool diagnosticLogAutoScroll = true;
@@ -35,7 +37,9 @@ public sealed class AutoFatreWindow : IDisposable
         FateAutomationController controller,
         GameDataSelectionCatalog selectionCatalog,
         InventoryCounter inventoryCounter,
-        Action<bool>? setOverlayWindowVisibility = null)
+        Action<bool>? setOverlayWindowVisibility = null,
+        Action? openSettings = null)
+        : base("AutoFatre###AutoFatreMainWindow")
     {
         this.pluginInterface = pluginInterface;
         this.configuration = configuration;
@@ -43,40 +47,48 @@ public sealed class AutoFatreWindow : IDisposable
         this.selectionCatalog = selectionCatalog;
         this.inventoryCounter = inventoryCounter;
         this.setOverlayWindowVisibility = setOverlayWindowVisibility ?? (_ => { });
-        this.pluginInterface.UiBuilder.Draw += this.Draw;
+        this.openSettings = openSettings ?? (() => { });
+        this.Size = new Vector2(760, 650);
+        this.SizeCondition = ImGuiCond.FirstUseEver;
+        this.TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Cog,
+            IconOffset = new Vector2(2, 2),
+            Priority = -100,
+            Click = button =>
+            {
+                if (button == ImGuiMouseButton.Left)
+                    this.openSettings();
+            },
+            ShowTooltip = () => ImGui.SetTooltip("打开 AutoFatre 设置"),
+        });
         this.pluginInterface.UiBuilder.OpenMainUi += this.Open;
-        this.pluginInterface.UiBuilder.OpenConfigUi += this.Open;
     }
 
-    public void Open() => this.isOpen = true;
+    public void Open()
+    {
+        this.IsOpen = true;
+        this.BringToFront();
+    }
 
     public void OpenDiagnosticLog() => this.diagnosticLogOpen = true;
 
     public void Dispose()
     {
-        this.pluginInterface.UiBuilder.OpenConfigUi -= this.Open;
         this.pluginInterface.UiBuilder.OpenMainUi -= this.Open;
-        this.pluginInterface.UiBuilder.Draw -= this.Draw;
+        this.IsOpen = false;
     }
 
-    private void Draw()
+    public void DrawAuxiliaryWindows()
     {
-        if (!this.isOpen)
-        {
-            this.DrawDeathRecordsWindow();
-            this.DrawDiagnosticLogWindow();
-            return;
-        }
+        this.DrawDeathRecordsWindow();
+        this.DrawDiagnosticLogWindow();
+    }
 
-        ImGui.SetNextWindowSize(new Vector2(760, 650), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin("AutoFatre", ref this.isOpen))
-        {
-            ImGui.End();
-            this.DrawDeathRecordsWindow();
-            this.DrawDiagnosticLogWindow();
-            return;
-        }
-        ImGui.SetWindowFontScale(1.08f);
+    public override void Draw()
+    {
+        ImGui.SetWindowFontScale(UiFontScale);
+        string configurationBefore = Newtonsoft.Json.JsonConvert.SerializeObject(this.configuration);
 
         this.DrawHeader();
         if (ImGui.BeginTabBar("AutoFatreTabs"))
@@ -91,27 +103,19 @@ public sealed class AutoFatreWindow : IDisposable
                 this.DrawModeTab();
                 ImGui.EndTabItem();
             }
-            if (ImGui.BeginTabItem("设置"))
-            {
-                this.DrawAdvancedTab();
-                ImGui.EndTabItem();
-            }
-            if (ImGui.BeginTabItem("诊断"))
-            {
-                this.DrawDiagnosticsTab();
-                ImGui.EndTabItem();
-            }
             ImGui.EndTabBar();
         }
 
-        ImGui.End();
-        this.DrawDeathRecordsWindow();
-        this.DrawDiagnosticLogWindow();
+        if (configurationBefore != Newtonsoft.Json.JsonConvert.SerializeObject(this.configuration))
+        {
+            this.configuration.Normalize();
+            this.pluginInterface.SavePluginConfig(this.configuration);
+        }
     }
 
     public void DrawOverlayContents()
     {
-        ImGui.SetWindowFontScale(1.08f);
+        ImGui.SetWindowFontScale(UiFontScale);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(7f, 5f));
 
             bool running = this.controller.IsRunning;
@@ -222,14 +226,14 @@ public sealed class AutoFatreWindow : IDisposable
                     {
                         foreach (StopCondition stop in map.StopConditions)
                         {
-                            int target = Math.Max(1, stop.Kind == StopConditionKind.ItemCount ? stop.ItemCount : stop.FateCount);
+                            int target = stop.RequiredProgress;
                             int completed = this.controller.GetPresetStopConditionProgress(i, stop);
                             Vector4 progressColor = completed >= target
                                 ? new Vector4(0.35f, 0.9f, 0.45f, 1f)
                                 : NeutralValueColor;
                             DrawOverlayField(
                                 GetOverlayStopConditionLabel(stop),
-                                $"{completed} / {target}",
+                                $"{completed} / {target}{(stop.Kind == StopConditionKind.NoFates ? " 秒" : string.Empty)}",
                                 progressColor,
                                 progressColor);
                         }
@@ -248,6 +252,7 @@ public sealed class AutoFatreWindow : IDisposable
         StopConditionKind.FateCount => "└ 成功完成 FATE",
         StopConditionKind.ItemCount => $"└ 物品：{(stop.ItemId == 0 ? "未选择物品" : this.selectionCatalog.GetItemName(stop.ItemId))}",
         StopConditionKind.TargetFate => $"└ 指定 FATE：{(stop.TargetFateId == 0 ? "未选择 FATE" : this.selectionCatalog.GetFateDisplayName(stop.TargetFateId, includeMapName: false))}",
+        StopConditionKind.NoFates => "└ 当前地图无 FATE",
         _ => $"└ {StopKindLabel(stop.Kind)}",
     };
 
@@ -289,11 +294,8 @@ public sealed class AutoFatreWindow : IDisposable
         if (ImGui.Button("失败记录"))
             this.deathRecordsOpen = true;
         ImGui.SameLine();
-        if (ImGui.Button("保存配置"))
-        {
-            this.configuration.Normalize();
-            this.pluginInterface.SavePluginConfig(this.configuration);
-        }
+        if (ImGui.Button("打开设置"))
+            this.openSettings();
         ImGui.Separator();
     }
 
@@ -309,7 +311,7 @@ public sealed class AutoFatreWindow : IDisposable
             ("活动 FATE", this.controller.ActiveFateIdSnapshot is { } activeFateId
                 ? $"#{activeFateId} {this.controller.ActiveFateNameSnapshot}（类型：{this.controller.ActiveFateCombatKind}）"
                 : $"未选择（类型：{this.controller.ActiveFateCombatKind}）", NeutralValueColor),
-            ("接战/清场目标", $"{this.controller.AggroCount} / {this.configuration.MaxAggroCount}", NeutralValueColor));
+            ("接战/清场目标", $"{this.controller.AggroCount} / {this.controller.CurrentMaxAggroCount}", NeutralValueColor));
 
         DrawSectionTitle("依赖状态");
         DrawStatusGrid(
@@ -518,7 +520,6 @@ public sealed class AutoFatreWindow : IDisposable
     private void DrawModeTab()
     {
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
-        string fingerprintBefore = this.GetPresetFingerprint();
         AutomationMode mode = this.configuration.Mode;
         this.DrawChoiceButtons(
             "运行模式",
@@ -675,12 +676,6 @@ public sealed class AutoFatreWindow : IDisposable
             sequence.Name = sequenceName;
         this.DrawPresetMapsEditor(sequence);
 
-        string fingerprintAfter = this.GetPresetFingerprint();
-        if (!string.Equals(fingerprintBefore, fingerprintAfter, StringComparison.Ordinal))
-        {
-            this.configuration.Normalize();
-            this.pluginInterface.SavePluginConfig(this.configuration);
-        }
         ImGui.PopStyleVar();
     }
 
@@ -841,6 +836,8 @@ public sealed class AutoFatreWindow : IDisposable
             .FirstOrDefault() ?? 0;
         if (fateCount > 0)
             parts.Add($"次数{fateCount}");
+        if (preset.StopConditions?.FirstOrDefault(stop => stop.Kind == StopConditionKind.NoFates) is { } noFates)
+            parts.Add($"无FATE {noFates.RequiredProgress}秒");
 
         foreach (StopCondition stop in preset.StopConditions?.Where(stop => stop.Kind == StopConditionKind.ItemCount && stop.ItemId != 0) ?? [])
             parts.Add($"{this.selectionCatalog.GetItemName(stop.ItemId)}({Math.Max(1, stop.ItemCount)})");
@@ -877,12 +874,6 @@ public sealed class AutoFatreWindow : IDisposable
 
         return text[..low] + suffix;
     }
-
-    private string GetPresetFingerprint() => JsonSerializer.Serialize(new
-    {
-        this.configuration.ActivePresetSequenceIndex,
-        this.configuration.PresetSequences,
-    });
 
     private void DrawPresetSequenceSelector()
     {
@@ -945,12 +936,23 @@ public sealed class AutoFatreWindow : IDisposable
     private void DrawMapStopConditions(MapPreset preset, int presetIndex)
     {
         ImGui.TextUnformatted("停止条件（勾选的条件全部满足后进入下一地图）");
-        bool fateEnabled = preset.StopConditions.Any(s => s.Kind == StopConditionKind.FateCount);
-        if (ImGui.Checkbox("满足次数", ref fateEnabled))
+        bool noFatesEnabled = preset.HasStopCondition(StopConditionKind.NoFates);
+        if (ImGui.Checkbox("当前地图无 FATE", ref noFatesEnabled))
+            preset.SetNoFatesStopCondition(noFatesEnabled);
+        if (noFatesEnabled)
         {
-            preset.StopConditions.RemoveAll(s => s.Kind == StopConditionKind.FateCount);
-            if (fateEnabled) preset.StopConditions.Add(new StopCondition { Kind = StopConditionKind.FateCount, FateCount = 1 });
+            StopCondition stop = preset.StopConditions.First(s => s.Kind == StopConditionKind.NoFates);
+            int seconds = stop.RequiredProgress;
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(220);
+            if (ImGui.SliderInt("持续时间", ref seconds, 3, 10, "%d 秒"))
+                stop.NoFateSeconds = seconds;
         }
+        ImGui.TextDisabled("地图无 FATE 与其他条件互斥；勾选后清除其他条件。地图上的所有 FATE 都计入判断。");
+        ImGui.BeginDisabled(noFatesEnabled);
+        bool fateEnabled = preset.HasStopCondition(StopConditionKind.FateCount);
+        if (ImGui.Checkbox("满足次数", ref fateEnabled))
+            preset.SetStopConditionEnabled(StopConditionKind.FateCount, fateEnabled);
         if (fateEnabled)
         {
             StopCondition stop = preset.StopConditions.First(s => s.Kind == StopConditionKind.FateCount);
@@ -959,12 +961,9 @@ public sealed class AutoFatreWindow : IDisposable
             if (ImGui.InputInt("次数", ref count)) stop.FateCount = Math.Max(1, count);
         }
 
-        bool itemEnabled = preset.StopConditions.Any(s => s.Kind == StopConditionKind.ItemCount);
+        bool itemEnabled = preset.HasStopCondition(StopConditionKind.ItemCount);
         if (ImGui.Checkbox("满足物品数量", ref itemEnabled))
-        {
-            if (!itemEnabled) preset.StopConditions.RemoveAll(s => s.Kind == StopConditionKind.ItemCount);
-            else if (!preset.StopConditions.Any(s => s.Kind == StopConditionKind.ItemCount)) preset.StopConditions.Add(new StopCondition { Kind = StopConditionKind.ItemCount });
-        }
+            preset.SetStopConditionEnabled(StopConditionKind.ItemCount, itemEnabled);
         if (itemEnabled)
         {
             int remove = -1;
@@ -990,12 +989,9 @@ public sealed class AutoFatreWindow : IDisposable
             if (ImGui.Button("添加物品")) preset.StopConditions.Add(new StopCondition { Kind = StopConditionKind.ItemCount });
         }
 
-        bool targetEnabled = preset.StopConditions.Any(s => s.Kind == StopConditionKind.TargetFate);
+        bool targetEnabled = preset.HasStopCondition(StopConditionKind.TargetFate);
         if (ImGui.Checkbox("完成指定 FATE", ref targetEnabled))
-        {
-            if (!targetEnabled) preset.StopConditions.RemoveAll(s => s.Kind == StopConditionKind.TargetFate);
-            else if (!preset.StopConditions.Any(s => s.Kind == StopConditionKind.TargetFate)) preset.StopConditions.Add(new StopCondition { Kind = StopConditionKind.TargetFate });
-        }
+            preset.SetStopConditionEnabled(StopConditionKind.TargetFate, targetEnabled);
         if (targetEnabled)
         {
             int remove = -1; int row = 0;
@@ -1031,11 +1027,11 @@ public sealed class AutoFatreWindow : IDisposable
             preset.TargetFallback = fallback;
             if (hasOther) ImGui.TextDisabled("同时启用其他条件时，已强制选择“刷其他的”");
         }
+        ImGui.EndDisabled();
     }
 
-    private void DrawAdvancedTab()
+    private void DrawInterfaceSettings()
     {
-        DrawSectionTitle("界面");
         bool showOverlay = this.configuration.ShowOverlayWindow;
         if (DrawSettingCheckbox(
                 "显示悬浮窗",
@@ -1046,8 +1042,10 @@ public sealed class AutoFatreWindow : IDisposable
             this.configuration.ShowOverlayWindow = showOverlay;
             this.setOverlayWindowVisibility(showOverlay);
         }
+    }
 
-        DrawSectionTitle("伙伴");
+    private void DrawCompanionSettings()
+    {
         bool autoChocobo = this.configuration.AutoSummonChocoboCompanion;
         if (DrawSettingCheckbox(
                 "自动维护陆行鸟",
@@ -1055,8 +1053,10 @@ public sealed class AutoFatreWindow : IDisposable
                 "启用后，进入地图、传送到达和前往 FATE 等安全时机会自动召唤或延长战斗陆行鸟。",
                 ref autoChocobo))
             this.configuration.AutoSummonChocoboCompanion = autoChocobo;
+    }
 
-        DrawSectionTitle("FATE 与移动");
+    private void DrawMovementSettings()
+    {
         bool fly = this.configuration.FlyToFates;
         if (DrawSettingCheckbox(
                 "飞行前往",
@@ -1073,19 +1073,47 @@ public sealed class AutoFatreWindow : IDisposable
                 0,
                 60))
             this.configuration.NextFateDelaySeconds = nextFateDelay;
+        float approach = this.configuration.PullApproachDistance;
+        if (DrawSettingSliderFloat(
+                "战斗接近距离",
+                "advanced-pull-approach",
+                "只对未接战目标执行首次导航接近，包括未开战的普通怪物、BOSS 和破坏目标；已在接战名单中的目标只选中、不靠近，靠近途中接战也立即停止导航。到达此距离或本次导航终点、向目标施放攻击读条后结束接近；召唤伙伴等非攻击读条只暂停。走远或躲技能不会重新导航。",
+                ref approach,
+                1f,
+                20f,
+                "%.1f yalms"))
+            this.configuration.PullApproachDistance = approach;
+    }
 
-        this.DrawFateBlacklist();
-
-        DrawSectionTitle("战斗");
-        int aggro = this.configuration.MaxAggroCount;
+    private void DrawCombatSettings()
+    {
+        int tankAggro = this.configuration.TankMaxAggroCount;
         if (DrawSettingSliderInt(
-                "拉怪上限",
-                "advanced-max-aggro",
-                "普通怪物类 FATE 中，主动吸引并保持仇恨的目标数量上限；BOSS 类 FATE 不使用此设置。",
-                ref aggro,
+                "坦克拉怪上限",
+                "advanced-max-aggro-tank",
+                "当前职业为坦克时，普通怪物类 FATE 主动拉怪的数量上限；BOSS 类 FATE 不使用此设置，额外攻击者仍可能加入战斗。",
+                ref tankAggro,
                 1,
-                4))
-            this.configuration.MaxAggroCount = aggro;
+                6))
+            this.configuration.TankMaxAggroCount = tankAggro;
+        int dpsAggro = this.configuration.DpsMaxAggroCount;
+        if (DrawSettingSliderInt(
+                "输出拉怪上限",
+                "advanced-max-aggro-dps",
+                "当前职业为输出时，普通怪物类 FATE 主动拉怪的数量上限；BOSS 类 FATE 不使用此设置，额外攻击者仍可能加入战斗。",
+                ref dpsAggro,
+                1,
+                6))
+            this.configuration.DpsMaxAggroCount = dpsAggro;
+        int healerAggro = this.configuration.HealerMaxAggroCount;
+        if (DrawSettingSliderInt(
+                "治疗拉怪上限",
+                "advanced-max-aggro-healer",
+                "当前职业为治疗时，普通怪物类 FATE 主动拉怪的数量上限；BOSS 类 FATE 不使用此设置，额外攻击者仍可能加入战斗。",
+                ref healerAggro,
+                1,
+                6))
+            this.configuration.HealerMaxAggroCount = healerAggro;
         PullRefillPolicy refillPolicy = this.configuration.PullRefillPolicy;
         this.DrawEnumCombo(
             "补充拉怪时机",
@@ -1095,18 +1123,8 @@ public sealed class AutoFatreWindow : IDisposable
             PullRefillPolicyLabel);
         this.configuration.PullRefillPolicy = refillPolicy;
         ImGui.TextDisabled(refillPolicy == PullRefillPolicy.RefillAtHalf
-            ? $"当前战斗目标不多于 {this.configuration.MaxAggroCount / 2} 只时补充至上限。"
+            ? $"按当前职业上限 {this.controller.CurrentMaxAggroCount}，剩余不多于 {this.controller.CurrentMaxAggroCount / 2} 只时补充；进度达到 80% 后不再半数补怪。"
             : "本批目标全部死亡后才开始下一批。");
-        float approach = this.configuration.PullApproachDistance;
-        if (DrawSettingSliderFloat(
-                "拉怪距离",
-                "advanced-pull-approach",
-                "主动拉怪时接近目标到多少 yalms 后停止移动并等待建立仇恨；数值越小越接近目标。",
-                ref approach,
-                1f,
-                20f,
-                "%.1f yalms"))
-            this.configuration.PullApproachDistance = approach;
         int aggroTimeout = this.configuration.AggroConfirmationTimeoutSeconds;
         if (DrawSettingSliderInt(
                 "仇恨确认超时",
@@ -1126,12 +1144,15 @@ public sealed class AutoFatreWindow : IDisposable
                 300))
             this.configuration.SkippedTargetCooldownSeconds = targetCooldown;
 
-        DrawSectionTitle("优先目标");
+    }
+
+    private void DrawPriorityTargetSettings()
+    {
         bool prioritizeLost = this.configuration.PrioritizeLostGirlAndLostOne;
         if (DrawSettingCheckbox(
                 "优先击杀迷失目标",
                 "advanced-prioritize-lost",
-                "勾选后，当前 FATE 中出现迷失少女或迷失者时会暂时锁定并优先击杀，目标死亡或消失后恢复原有选怪逻辑。仅在 FATE 剩余时间达到对应阈值时触发。",
+                "勾选后，所有支持的战斗型 FATE 中出现迷失少女或迷失者，且 FATE 剩余时间不低于对应阈值时，暂时锁定并优先击杀；目标死亡或消失后恢复原有流程。",
                 ref prioritizeLost))
         {
             this.configuration.PrioritizeLostGirlAndLostOne = prioritizeLost;
@@ -1142,27 +1163,27 @@ public sealed class AutoFatreWindow : IDisposable
             if (DrawSettingSliderInt(
                     "少女触发阈值",
                     "advanced-lost-girl-threshold",
-                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失少女；单位为秒，设为 0 表示不限制。默认 180 秒（3 分钟）。",
+                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失少女；单位为秒，设为 0 表示不限制。默认 180 秒（3 分钟）。已锁定后继续击杀至死亡或消失。",
                     ref lostGirlThreshold,
                     0,
                     600))
-            {
                 this.configuration.LostGirlRemainingTimeThresholdSeconds = lostGirlThreshold;
-            }
+
             int lostOneThreshold = this.configuration.LostOneRemainingTimeThresholdSeconds;
             if (DrawSettingSliderInt(
                     "迷失者触发阈值",
                     "advanced-lost-one-threshold",
-                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失者；单位为秒，设为 0 表示不限制。默认 240 秒（4 分钟）。",
+                    "当前 FATE 剩余时间不低于此值时才会优先击杀迷失者；单位为秒，设为 0 表示不限制。默认 240 秒（4 分钟）。已锁定后继续击杀至死亡或消失。",
                     ref lostOneThreshold,
                     0,
                     600))
-            {
                 this.configuration.LostOneRemainingTimeThresholdSeconds = lostOneThreshold;
-            }
         }
 
-        DrawSectionTitle("死亡恢复");
+    }
+
+    private void DrawDeathRecoverySettings()
+    {
         bool autoRaise = this.configuration.AutoAcceptRaise;
         if (DrawSettingCheckbox(
                 "自动接受复活",
@@ -1203,6 +1224,10 @@ public sealed class AutoFatreWindow : IDisposable
                 3600))
             this.configuration.DeathFateCooldownSeconds = deathCooldown;
 
+    }
+
+    private void DrawNavigationRecoverySettings()
+    {
         DrawSectionTitle("导航与异常恢复");
         int stuck = this.configuration.NavigationStuckSeconds;
         if (DrawSettingSliderInt(
@@ -1226,7 +1251,7 @@ public sealed class AutoFatreWindow : IDisposable
         if (DrawSettingSliderInt(
                 "脱战超时",
                 "advanced-combat-escape-timeout",
-                "战斗状态中没有可见目标时，最多持续跑离多久；超时后可能触发副本进退来重置异常仇恨。",
+                "战斗状态中没有可见目标时，最多持续跑离多久；战后清场总计超过 30 秒仍未结束时，会执行一次副本进退。",
                 ref combatEscapeTimeout,
                 5,
                 120))
@@ -1242,12 +1267,15 @@ public sealed class AutoFatreWindow : IDisposable
                 "%.0f yalms"))
             this.configuration.CombatEscapeDistance = combatEscapeDistance;
 
-        DrawSectionTitle("音效");
+    }
+
+    private void DrawSoundSettings()
+    {
         bool soundAlerts = this.configuration.EnableSoundAlerts;
         if (DrawSettingCheckbox(
                 "启用提醒",
                 "advanced-sound-alerts",
-                "启用后，在指定 FATE 出现、FATE 完成、角色死亡或普通 FATE 跳过导航时播放下方选择的游戏内置音效。",
+                "启用后，在目标出现、FATE 完成、角色死亡、导航跳过、FATE 范围内新增玩家或双色宝石达到阈值时播放对应音效。",
                 ref soundAlerts))
             this.configuration.EnableSoundAlerts = soundAlerts;
         uint targetAppearedSound = this.configuration.SoundAlertTargetAppearedEffectId;
@@ -1278,6 +1306,29 @@ public sealed class AutoFatreWindow : IDisposable
             "普通 FATE 因距离、状态或其他条件被跳过，没有开始前往时播放的音效。",
             ref navigationSound);
         this.configuration.SoundAlertNavigationSkippedEffectId = navigationSound;
+        uint playerEnteredSound = this.configuration.SoundAlertPlayerEnteredEffectId;
+        this.DrawSoundSelector(
+            "新增玩家",
+            "advanced-sound-player-entered",
+            "进入 FATE 时圈内已有其他玩家会提醒一次；之后有其他玩家新进入该范围时也提醒。离开后重新进入会再次提醒。",
+            ref playerEnteredSound);
+        this.configuration.SoundAlertPlayerEnteredEffectId = playerEnteredSound;
+        uint gemstonesFullSound = this.configuration.SoundAlertGemstonesFullEffectId;
+        this.DrawSoundSelector(
+            "双色宝石",
+            "advanced-sound-gemstones-full",
+            "双色宝石数量达到下方阈值或更高时提醒一次；消费降到阈值以下后，再次达到阈值会重新提醒。",
+            ref gemstonesFullSound);
+        this.configuration.SoundAlertGemstonesFullEffectId = gemstonesFullSound;
+        int gemstonesThreshold = this.configuration.SoundAlertGemstonesThreshold;
+        if (DrawSettingSliderInt(
+                "双色宝石提醒阈值",
+                "advanced-sound-gemstones-threshold",
+                "当前双色宝石数量不低于此值时触发提醒，范围为 1～1500。默认 1500，等同于原来的满额提醒。",
+                ref gemstonesThreshold,
+                1,
+                1500))
+            this.configuration.SoundAlertGemstonesThreshold = gemstonesThreshold;
         int soundCooldown = this.configuration.SoundAlertCooldownSeconds;
         if (DrawSettingSliderInt(
                 "提醒冷却",
@@ -1292,10 +1343,7 @@ public sealed class AutoFatreWindow : IDisposable
 
     private void DrawFateBlacklist()
     {
-        DrawSettingLabel(
-            "FATE 黑名单",
-            "加入黑名单的 FATE 不会被自动评分、选择、抢占或导航；下方列表固定高度，超出部分可滚动查看。",
-            "advanced-fate-blacklist");
+        DrawSectionTitle($"FATE 黑名单（{this.configuration.FateBlacklist.Count} 项）");
         ImGui.TextDisabled("黑名单中的 FATE 不会被自动评分、选择、抢占或导航。");
 
         ushort? selected = null;
@@ -1369,6 +1417,41 @@ public sealed class AutoFatreWindow : IDisposable
             this.configuration.FateBlacklist.RemoveAt(removeIndex);
     }
 
+    public void DrawSettingsPage(AutoFatreSettingsPage page)
+    {
+        switch (page)
+        {
+            case AutoFatreSettingsPage.Interface:
+                this.DrawInterfaceSettings();
+                break;
+            case AutoFatreSettingsPage.Companion:
+                this.DrawCompanionSettings();
+                break;
+            case AutoFatreSettingsPage.Movement:
+                this.DrawMovementSettings();
+                this.DrawNavigationRecoverySettings();
+                break;
+            case AutoFatreSettingsPage.Combat:
+                this.DrawCombatSettings();
+                break;
+            case AutoFatreSettingsPage.PriorityTargets:
+                this.DrawPriorityTargetSettings();
+                break;
+            case AutoFatreSettingsPage.DeathRecovery:
+                this.DrawDeathRecoverySettings();
+                break;
+            case AutoFatreSettingsPage.Blacklist:
+                this.DrawFateBlacklist();
+                break;
+            case AutoFatreSettingsPage.Sound:
+                this.DrawSoundSettings();
+                break;
+            case AutoFatreSettingsPage.Diagnostics:
+                this.DrawDiagnosticsTab();
+                break;
+        }
+    }
+
     private void DrawDiagnosticsTab()
     {
         DrawSectionTitle("Wiki FATE 数据");
@@ -1383,7 +1466,7 @@ public sealed class AutoFatreWindow : IDisposable
         if (!this.controller.IsStaticFateCatalogAvailable
             && !string.IsNullOrWhiteSpace(this.controller.StaticFateCatalogLoadError))
             ImGui.TextColored(new Vector4(1f, 0.55f, 0.35f, 1f), $"加载错误：{this.controller.StaticFateCatalogLoadError}");
-        ImGui.TextDisabled("Wiki 数据只在诊断页展示；运行页仅显示实时运行状态。");
+        ImGui.TextDisabled("Wiki 数据可在这里查看；运行页显示实时运行状态。");
         if (ImGui.Button("扫描当前 FATE 并写入诊断日志"))
             this.controller.RequestLogScan();
 
@@ -1395,13 +1478,13 @@ public sealed class AutoFatreWindow : IDisposable
         if (ImGui.IsItemHovered())
         {
             ImGui.SetTooltip(
-                "以单人解除限制进入一次泰坦歼灭战并立即退出。\\n"
+                "以单人解除限制进入一次伊弗利特歼灭战并立即退出。\\n"
                 + "执行时会中断当前导航和 FATE；处于小队或已有副本队列时会拒绝执行。");
         }
         if (ImGui.Button("取消等级同步（测试）"))
             this.controller.RequestCancelLevelSync();
         if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("调用游戏原生 FateLevelSync(813, FATE ID, 0) 取消同步，不会主动停止自动化；结果会写入诊断页和 XLLog。");
+            ImGui.SetTooltip("调用游戏原生 FateLevelSync(813, FATE ID, 0) 取消同步，不会主动停止自动化；结果会写入诊断日志和 XLLog。");
         if (ImGui.Button("取消同步并清理 Boss 周围（测试）"))
             this.controller.RequestCancelSyncAndCleanBossAreaTest();
         if (ImGui.IsItemHovered())
@@ -1427,7 +1510,7 @@ public sealed class AutoFatreWindow : IDisposable
         ImGui.SetNextWindowSizeConstraints(new Vector2(560, 320), new Vector2(1600, 1200));
         if (ImGui.Begin("AutoFatre - 运行诊断日志", ref open))
         {
-            ImGui.SetWindowFontScale(1.08f);
+            ImGui.SetWindowFontScale(UiFontScale);
             ImGui.TextDisabled("长消息会自动换行；日志最多保留最近 500 条。滚动到其他位置后，自动滚动不会打断查看。");
             if (ImGui.Button("复制全部日志"))
                 ImGui.SetClipboardText(this.BuildDiagnosticLogText());
@@ -1511,7 +1594,7 @@ public sealed class AutoFatreWindow : IDisposable
         ImGui.SetNextWindowSize(new Vector2(620, 420), ImGuiCond.FirstUseEver);
         if (ImGui.Begin("AutoFatre - 失败记录", ref open))
         {
-            ImGui.SetWindowFontScale(1.08f);
+            ImGui.SetWindowFontScale(UiFontScale);
             ImGui.TextDisabled("记录 FATE 期间的死亡和自动化失败；时间按本地时区显示。");
             ImGui.SameLine();
             if (ImGui.Button("清空记录"))
@@ -2207,7 +2290,8 @@ public sealed class AutoFatreWindow : IDisposable
         value = Math.Min(value, 16u);
         DrawSettingLabel(label, explanation, key);
         ImGui.SameLine(0f, 12f);
-        SetSettingControlWidth();
+        float previewWidth = ImGui.CalcTextSize("试听").X + ImGui.GetStyle().FramePadding.X * 2f + ImGui.GetStyle().ItemSpacing.X;
+        SetSettingControlWidth(reservedWidth: previewWidth);
         string preview = value == 0 ? "无音效" : $"音效 {value}（<se.{value}>）";
         if (ImGui.BeginCombo($"##sound-selector-{key}", preview))
         {
@@ -2233,10 +2317,10 @@ public sealed class AutoFatreWindow : IDisposable
         ImGui.SetNextItemWidth(width);
     }
 
-    private static void SetSettingControlWidth(float maximum = 340f)
+    private static void SetSettingControlWidth(float maximum = 340f, float reservedWidth = 0f)
     {
-        float available = ImGui.GetContentRegionAvail().X;
-        ImGui.SetNextItemWidth(Math.Min(maximum, Math.Max(180f, available)));
+        float available = ImGui.GetContentRegionAvail().X - reservedWidth;
+        ImGui.SetNextItemWidth(Math.Min(maximum, Math.Max(80f, available)));
     }
 
     private static string ModeLabel(AutomationMode mode) => mode switch
@@ -2268,6 +2352,7 @@ public sealed class AutoFatreWindow : IDisposable
         StopConditionKind.FateCount => "成功完成次数",
         StopConditionKind.ItemCount => "背包物品数量",
         StopConditionKind.TargetFate => "完成指定 FATE",
+        StopConditionKind.NoFates => "当前地图无 FATE",
         _ => kind.ToString(),
     };
 

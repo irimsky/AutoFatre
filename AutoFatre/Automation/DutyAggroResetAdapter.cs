@@ -10,16 +10,16 @@ namespace AutoFatre;
 
 /// <summary>
 /// Owns the emergency solo-duty operation used to clear a stuck combat state. All entry and
-/// confirmation calls are restricted to The Navel and queues issued by this adapter.
+/// confirmation calls are restricted to The Bowl of Embers and queues issued by this adapter.
 /// </summary>
 public sealed unsafe class DutyAggroResetAdapter : IDisposable
 {
-    public const uint TitanContentFinderConditionId = 57;
+    public const uint IfritContentFinderConditionId = 56;
     private const uint FinishTerritoryTransportCommand = 816;
     private const uint LeaveDutyCommand = 819;
 
     private readonly IGameGui gameGui;
-    private readonly ContentFinderCondition? titanDuty;
+    private readonly ContentFinderCondition? ifritDuty;
     private bool queueIssuedByUs;
     private bool finishTerritoryTransportIssued;
     private bool disposed;
@@ -30,8 +30,8 @@ public sealed unsafe class DutyAggroResetAdapter : IDisposable
         IGameInteropProvider _)
     {
         this.gameGui = gameGui;
-        this.titanDuty = dataManager.GetExcelSheet<ContentFinderCondition>()
-            .GetRowOrDefault(TitanContentFinderConditionId);
+        this.ifritDuty = dataManager.GetExcelSheet<ContentFinderCondition>()
+            .GetRowOrDefault(IfritContentFinderConditionId);
     }
 
     public bool QueueIssuedByUs => this.queueIssuedByUs;
@@ -48,27 +48,27 @@ public sealed unsafe class DutyAggroResetAdapter : IDisposable
         }
     }
 
-    public bool IsInTitanDuty
+    public bool IsInIfritDuty
     {
         get
         {
             GameMain* gameMain = GameMain.Instance();
             return gameMain != null
-                && gameMain->CurrentContentFinderConditionId == TitanContentFinderConditionId;
+                && gameMain->CurrentContentFinderConditionId == IfritContentFinderConditionId;
         }
     }
 
     public bool Validate(out string reason)
     {
-        if (this.titanDuty is not { } duty || duty.RowId != TitanContentFinderConditionId)
+        if (this.ifritDuty is not { } duty || duty.RowId != IfritContentFinderConditionId)
         {
-            reason = "无法读取泰坦歼灭战的 ContentFinderCondition 57";
+            reason = "无法读取伊弗利特歼灭战的 ContentFinderCondition 56";
             return false;
         }
 
         if (!duty.AllowUndersized)
         {
-            reason = "当前客户端数据不允许泰坦歼灭战使用解除限制";
+            reason = "当前客户端数据不允许伊弗利特歼灭战使用解除限制";
             return false;
         }
 
@@ -76,7 +76,7 @@ public sealed unsafe class DutyAggroResetAdapter : IDisposable
             || duty.Content.RowId == 0
             || !UIState.IsInstanceContentUnlocked(duty.Content.RowId))
         {
-            reason = "泰坦歼灭战尚未解锁，无法用于重置仇恨";
+            reason = "伊弗利特歼灭战尚未解锁，无法用于重置仇恨";
             return false;
         }
 
@@ -109,10 +109,10 @@ public sealed unsafe class DutyAggroResetAdapter : IDisposable
         finder->IsExplorerMode = false;
         finder->IsLevelSync = false;
 
-        uint dutyId = TitanContentFinderConditionId;
+        uint dutyId = IfritContentFinderConditionId;
         queue->QueueDuties(&dutyId, 1);
         this.queueIssuedByUs = true;
-        reason = "已以解除限制请求进入泰坦歼灭战";
+        reason = "已以解除限制请求进入伊弗利特歼灭战";
         return true;
     }
 
@@ -145,7 +145,7 @@ public sealed unsafe class DutyAggroResetAdapter : IDisposable
         return true;
     }
 
-    public bool TryLeaveTitan()
+    public bool TryLeaveIfrit()
     {
         if (GameMain.Instance() == null)
             return false;

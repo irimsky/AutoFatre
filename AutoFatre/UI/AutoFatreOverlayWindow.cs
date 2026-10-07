@@ -15,7 +15,8 @@ public sealed class AutoFatreOverlayWindow : Window
     public AutoFatreOverlayWindow(
         IDalamudPluginInterface pluginInterface,
         AutoFatreConfiguration configuration,
-        AutoFatreWindow mainWindow)
+        AutoFatreWindow mainWindow,
+        Action openSettings)
         : base("AutoFatre - 悬浮窗")
     {
         this.pluginInterface = pluginInterface;
@@ -33,6 +34,14 @@ public sealed class AutoFatreOverlayWindow : Window
         this.RespectCloseHotkey = false;
         this.IsOpen = configuration.ShowOverlayWindow;
 
+        this.TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Cog,
+            IconOffset = new Vector2(1, 1),
+            Priority = -100,
+            Click = _ => openSettings(),
+            ShowTooltip = () => ImGui.SetTooltip("打开 AutoFatre 设置"),
+        });
         this.TitleBarButtons.Add(new TitleBarButton
         {
             Icon = FontAwesomeIcon.Home,
