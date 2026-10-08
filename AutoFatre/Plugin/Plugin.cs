@@ -130,6 +130,11 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
+        var assembly = typeof(Plugin).Assembly;
+        this.log.Information("AutoFatre 构建信息：Version={Version}，Build={Build}，Module={Module}",
+            assembly.GetName().Version?.ToString() ?? "未知",
+            System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?.InformationalVersion ?? "未知",
+            assembly.ManifestModule.ModuleVersionId);
         await Task.WhenAll(
                 this.staticFateCatalog.LoadAsync(cancellationToken),
                 this.staticFateTerritoryCatalog.LoadAsync(cancellationToken),
