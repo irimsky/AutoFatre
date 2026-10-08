@@ -7,7 +7,7 @@ using Dalamud.Plugin;
 
 namespace AutoFatre;
 
-public sealed class AutoFatreWindow : Window, IDisposable
+public sealed partial class AutoFatreWindow : Window, IDisposable
 {
     internal const float UiFontScale = 1.2f;
     private static readonly Vector4 LabelColor = new(1f, 1f, 1f, 1f);
@@ -39,7 +39,7 @@ public sealed class AutoFatreWindow : Window, IDisposable
         InventoryCounter inventoryCounter,
         Action<bool>? setOverlayWindowVisibility = null,
         Action? openSettings = null)
-        : base("AutoFatre###AutoFatreMainWindow")
+        : base("AutoFatre###AutoFatreMainWindow", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         this.pluginInterface = pluginInterface;
         this.configuration = configuration;
@@ -93,7 +93,7 @@ public sealed class AutoFatreWindow : Window, IDisposable
         this.DrawHeader();
         if (ImGui.BeginTabBar("AutoFatreTabs"))
         {
-            if (ImGui.BeginTabItem("运行"))
+            if (ImGui.BeginTabItem("主页"))
             {
                 this.DrawRunTab();
                 ImGui.EndTabItem();
@@ -101,6 +101,11 @@ public sealed class AutoFatreWindow : Window, IDisposable
             if (ImGui.BeginTabItem("选择模式"))
             {
                 this.DrawModeTab();
+                ImGui.EndTabItem();
+            }
+            if (ImGui.BeginTabItem("自动兑换"))
+            {
+                this.DrawExchangeTab();
                 ImGui.EndTabItem();
             }
             ImGui.EndTabBar();
@@ -543,7 +548,7 @@ public sealed class AutoFatreWindow : Window, IDisposable
                 this.configuration.TargetFateId = null;
                 this.configuration.TargetFateIds.Clear();
             }
-            ImGui.TextDisabled("自动从目标地图的默认已解锁以太之光中选择；不可用时依次尝试下一个。");
+            ImGui.TextUnformatted("自动从目标地图的默认已解锁以太之光中选择；不可用时依次尝试下一个。");
         }
 
         if (this.configuration.Mode == AutomationMode.TargetFate)
@@ -635,14 +640,14 @@ public sealed class AutoFatreWindow : Window, IDisposable
 
                 if (this.selectionCatalog.TryGetFate(targetFates[0], out FateSelectionEntry selectedEntry))
                 {
-                    ImGui.TextDisabled(selectedEntry.MapName is { } mapName
+                    ImGui.TextUnformatted(selectedEntry.MapName is { } mapName
                         ? $"目标地图：{mapName}（所有指定 FATE 必须在此地图）"
                         : "客户端开放世界地图目录无法定位该 FATE；它可能是活动、任务实例或已废弃条目，无法用于自动跨地图传送。");
                 }
             }
             else
             {
-                ImGui.TextDisabled("请先选择第一个指定 FATE，再添加同地图的其他 FATE。");
+                ImGui.TextUnformatted("请先选择第一个指定 FATE，再添加同地图的其他 FATE。");
             }
 
             this.configuration.TargetFateIds = targetFates.Distinct().ToList();
@@ -690,23 +695,66 @@ public sealed class AutoFatreWindow : Window, IDisposable
         else
             this.presetEditorMapIndex = Math.Clamp(this.presetEditorMapIndex, 0, sequence.Maps.Count - 1);
 
-        if (!ImGui.BeginChild("PresetMapsEditor", new Vector2(0, 0), true))
-        {
-            ImGui.EndChild();
+        float editorHeight = MathF.Max(1f, ImGui.GetContentRegionAvail().Y);
+        float listWidth = Math.Clamp(ImGui.GetContentRegionAvail().X * 0.58f, 380f, 460f);
+        if (!ImGui.BeginTable("PresetMapsEditorLayout", 2, ImGuiTableFlags.BordersInnerV, new Vector2(0, editorHeight)))
             return;
+
+        ImGui.TableSetupColumn("地图列表", ImGuiTableColumnFlags.WidthFixed, listWidth);
+        ImGui.TableSetupColumn("地图详情", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+
+        DrawSectionTitle("地图列表");
+        if (ImGui.Button("添加地图"))
+        {
+            sequence.Maps.Add(new MapPreset());
+            this.presetEditorMapIndex = sequence.Maps.Count - 1;
         }
 
-        float listWidth = Math.Clamp(ImGui.GetContentRegionAvail().X * 0.58f, 380f, 460f);
-        if (ImGui.BeginChild("PresetMapList", new Vector2(listWidth, 0), true))
+        ImGui.Spacing();
+        ImGui.BeginDisabled(sequence.Maps.Count == 0 || this.presetEditorMapIndex <= 0);
+        if (ImGui.Button("上移"))
         {
-            DrawSectionTitle("地图列表");
-            if (ImGui.Button("添加地图"))
+            int index = this.presetEditorMapIndex;
+            (sequence.Maps[index - 1], sequence.Maps[index]) = (sequence.Maps[index], sequence.Maps[index - 1]);
+            this.presetEditorMapIndex--;
+        }
+        ImGui.EndDisabled();
+        ImGui.SameLine();
+        ImGui.BeginDisabled(sequence.Maps.Count == 0 || this.presetEditorMapIndex >= sequence.Maps.Count - 1);
+        if (ImGui.Button("下移"))
+        {
+            int index = this.presetEditorMapIndex;
+            (sequence.Maps[index], sequence.Maps[index + 1]) = (sequence.Maps[index + 1], sequence.Maps[index]);
+            this.presetEditorMapIndex++;
+        }
+        ImGui.EndDisabled();
+        ImGui.SameLine();
+        bool mapDeleteConfirm = this.pendingPresetMapDeleteIndex == this.presetEditorMapIndex && DateTime.UtcNow < this.pendingPresetMapDeleteUntil;
+        ImGui.BeginDisabled(sequence.Maps.Count == 0);
+        if (ImGui.Button(mapDeleteConfirm ? "确认删除？" : "删除"))
+        {
+            if (!mapDeleteConfirm)
             {
-                sequence.Maps.Add(new MapPreset());
-                this.presetEditorMapIndex = sequence.Maps.Count - 1;
+                this.pendingPresetMapDeleteIndex = this.presetEditorMapIndex;
+                this.pendingPresetMapDeleteUntil = DateTime.UtcNow.AddSeconds(2);
             }
+            else
+            {
+                sequence.Maps.RemoveAt(this.presetEditorMapIndex);
+                this.presetEditorMapIndex = sequence.Maps.Count == 0 ? 0 : Math.Min(this.presetEditorMapIndex, sequence.Maps.Count - 1);
+                this.pendingPresetMapDeleteIndex = null;
+                this.pendingPresetMapDeleteUntil = DateTime.MinValue;
+            }
+        }
+        ImGui.EndDisabled();
 
-            ImGui.Spacing();
+        float mapListHeight = MathF.Max(1f, ImGui.GetContentRegionAvail().Y);
+        if (ImGui.BeginTable("PresetMapList", 1, ImGuiTableFlags.ScrollY | ImGuiTableFlags.Borders, new Vector2(0, mapListHeight)))
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
             for (int i = 0; i < sequence.Maps.Count; i++)
             {
                 MapPreset map = sequence.Maps[i];
@@ -714,11 +762,7 @@ public sealed class AutoFatreWindow : Window, IDisposable
                 string displaySummary = Ellipsize(summary, listWidth - 32f);
                 bool selected = i == this.presetEditorMapIndex;
                 float itemWidth = ImGui.GetContentRegionAvail().X;
-                if (ImGui.Selectable(
-                        $"{displaySummary}##preset-map-item-{i}",
-                        selected,
-                        ImGuiSelectableFlags.None,
-                        new Vector2(itemWidth, 52f)))
+                if (ImGui.Selectable($"{displaySummary}##preset-map-item-{i}", selected, ImGuiSelectableFlags.None, new Vector2(itemWidth, 52f)))
                 {
                     this.presetEditorMapIndex = i;
                     this.pendingPresetMapDeleteIndex = null;
@@ -730,56 +774,14 @@ public sealed class AutoFatreWindow : Window, IDisposable
 
             if (sequence.Maps.Count == 0)
                 ImGui.TextDisabled("还没有地图，请先添加地图。");
-
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
-            ImGui.BeginDisabled(sequence.Maps.Count == 0 || this.presetEditorMapIndex <= 0);
-            if (ImGui.Button("上移"))
-            {
-                int index = this.presetEditorMapIndex;
-                (sequence.Maps[index - 1], sequence.Maps[index]) = (sequence.Maps[index], sequence.Maps[index - 1]);
-                this.presetEditorMapIndex--;
-            }
-            ImGui.EndDisabled();
-            ImGui.SameLine();
-            ImGui.BeginDisabled(sequence.Maps.Count == 0 || this.presetEditorMapIndex >= sequence.Maps.Count - 1);
-            if (ImGui.Button("下移"))
-            {
-                int index = this.presetEditorMapIndex;
-                (sequence.Maps[index], sequence.Maps[index + 1]) = (sequence.Maps[index + 1], sequence.Maps[index]);
-                this.presetEditorMapIndex++;
-            }
-            ImGui.EndDisabled();
-            ImGui.SameLine();
-            bool mapDeleteConfirm = this.pendingPresetMapDeleteIndex == this.presetEditorMapIndex
-                                     && DateTime.UtcNow < this.pendingPresetMapDeleteUntil;
-            ImGui.BeginDisabled(sequence.Maps.Count == 0);
-            if (ImGui.Button(mapDeleteConfirm ? "确认删除？" : "删除"))
-            {
-                if (!mapDeleteConfirm)
-                {
-                    this.pendingPresetMapDeleteIndex = this.presetEditorMapIndex;
-                    this.pendingPresetMapDeleteUntil = DateTime.UtcNow.AddSeconds(2);
-                }
-                else
-                {
-                    sequence.Maps.RemoveAt(this.presetEditorMapIndex);
-                    this.presetEditorMapIndex = sequence.Maps.Count == 0
-                        ? 0
-                        : Math.Min(this.presetEditorMapIndex, sequence.Maps.Count - 1);
-                    this.pendingPresetMapDeleteIndex = null;
-                    this.pendingPresetMapDeleteUntil = DateTime.MinValue;
-                }
-            }
-            ImGui.EndDisabled();
-            ImGui.EndChild();
+            ImGui.EndTable();
         }
 
-        ImGui.SameLine();
-        bool detailsVisible = ImGui.BeginChild("PresetMapDetails", new Vector2(0, 0), true);
-        if (detailsVisible)
+        ImGui.TableNextColumn();
+        if (ImGui.BeginTable("PresetMapDetails", 1, ImGuiTableFlags.ScrollY, new Vector2(0, editorHeight)))
         {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
             if (sequence.Maps.Count == 0)
             {
                 DrawSectionTitle("地图详情");
@@ -789,10 +791,9 @@ public sealed class AutoFatreWindow : Window, IDisposable
             {
                 this.DrawPresetMapDetails(sequence.Maps[this.presetEditorMapIndex], this.presetEditorMapIndex);
             }
+            ImGui.EndTable();
         }
-        ImGui.EndChild();
-
-        ImGui.EndChild();
+        ImGui.EndTable();
     }
 
     private void DrawPresetMapDetails(MapPreset preset, int index)
@@ -1470,7 +1471,7 @@ public sealed class AutoFatreWindow : Window, IDisposable
         if (!this.controller.IsStaticFateCatalogAvailable
             && !string.IsNullOrWhiteSpace(this.controller.StaticFateCatalogLoadError))
             ImGui.TextColored(new Vector4(1f, 0.55f, 0.35f, 1f), $"加载错误：{this.controller.StaticFateCatalogLoadError}");
-        ImGui.TextDisabled("Wiki 数据可在这里查看；运行页显示实时运行状态。");
+        ImGui.TextDisabled("Wiki 数据可在这里查看；主页显示实时运行状态。");
         if (ImGui.Button("扫描当前 FATE 并写入诊断日志"))
             this.controller.RequestLogScan();
 

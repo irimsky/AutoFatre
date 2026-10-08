@@ -16,4 +16,5 @@ public enum NavigationPurpose
     CollectionObjective,
     CollectionTurnIn,
     PreSyncPosition,
+    GemstoneVendor,
 }

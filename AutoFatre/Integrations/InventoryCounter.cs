@@ -29,6 +29,21 @@ public sealed class InventoryCounter(IGameInventory inventory)
         return total;
     }
 
+    /// <summary>Space for normal-quality purchases in the four ordinary bags, including partial stacks.</summary>
+    public int PurchaseCapacity(uint itemId, uint stackSize)
+    {
+        long capacity = 0;
+        int stack = (int)Math.Clamp(stackSize, 1u, 99999u);
+        foreach (GameInventoryType bag in PlayerBags.Take(4))
+        foreach (ref readonly GameInventoryItem item in inventory.GetInventoryItems(bag))
+        {
+            if (item.IsEmpty) capacity += stack;
+            else if (item.BaseItemId == itemId && !item.IsHq && !item.IsCollectable)
+                capacity += Math.Max(0, stack - item.Quantity);
+        }
+        return (int)Math.Min(capacity, int.MaxValue);
+    }
+
     /// <summary>Copies the regular-bag item counts for detecting an item awarded by a FATE.</summary>
     public IReadOnlyDictionary<uint, int> Snapshot()
     {

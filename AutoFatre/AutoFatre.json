@@ -3,7 +3,7 @@
   "Name": "AutoFatre",
   "Punchline": "自动传送、跑图并刷 FATE",
   "Description": "自动传送、跑图、接战并完成战斗型 FATE，支持指定 FATE、地图预设、等级同步和死亡恢复；战斗技能需要另装职业循环插件。使用 /autofatre 或 /af 打开窗口。",
-  "Changelog": "修正 Boss 战前短读条导致战斗接近导航未及时停止的问题，并完善取消后的延迟寻路清理。修正 FATE 304 渡渡鸟窝的目标分类。新增供 AutoZodiac 使用的临时刷物品和指定 FATE IPC，支持逐场掉落清理等待及无进展恢复。",
+  "Changelog": "新增自动兑换双色宝石，支持有序购物清单、库存目标、保留宝石、已使用收藏品跳过和兑换后返回刷图。优化商人路线、切图后网格等待、暂停恢复及购买确认。商店和购物清单统一显示使用状态图标，强化资料片、地图、商人分类标题，运行页签改为主页。修正启动传送短暂被拒绝时的重试及目标 FATE 优先选择，并改善开启 NPC 对话推进。临时刷图可通过新 IPC 显式启用兑换。",
   "InternalName": "AutoFatre",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,

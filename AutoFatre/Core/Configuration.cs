@@ -130,7 +130,8 @@ public sealed class MapPresetSequence
 
 public sealed class AutoFatreConfiguration : IPluginConfiguration
 {
-    public int Version { get; set; } = 20;
+    public int Version { get; set; } = 21;
+    public GemstoneExchangeSettings GemstoneExchange { get; set; } = new();
     // Runtime-only switch. Persisting this value causes a plugin reload to resume automation
     // unexpectedly when the previous instance was still enabled during shutdown.
     [Newtonsoft.Json.JsonIgnore]
@@ -319,11 +320,14 @@ public sealed class AutoFatreConfiguration : IPluginConfiguration
             this.PresetSequences.Add(this.PresetSequence);
         this.ActivePresetSequenceIndex = Math.Clamp(this.ActivePresetSequenceIndex, 0, this.PresetSequences.Count - 1);
         this.PresetSequence = this.PresetSequences[this.ActivePresetSequenceIndex];
-        this.Version = 20;
+        this.GemstoneExchange = (this.GemstoneExchange ?? new()).Copy();
+        this.Version = 21;
     }
 
     public void Normalize()
     {
+        this.GemstoneExchange ??= new();
+        this.GemstoneExchange.Normalize();
         // Travel always uses the default unlocked aetheryte candidates. Keep these legacy fields
         // deserializable so old configuration files remain compatible, but never let an old manual
         // choice affect the runtime plan.

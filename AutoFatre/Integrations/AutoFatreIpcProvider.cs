@@ -11,6 +11,7 @@ namespace AutoFatre;
 public sealed class AutoFatreIpcProvider : IDisposable
 {
     private readonly ICallGateProvider<ushort, int, bool> startSingleFate;
+    private readonly ICallGateProvider<ushort, int, bool, bool> startSingleFateWithExchange;
     private readonly ICallGateProvider<object> stop;
     private readonly ICallGateProvider<string> getState;
     private readonly ICallGateProvider<string> getStatus;
@@ -19,7 +20,9 @@ public sealed class AutoFatreIpcProvider : IDisposable
     private readonly ICallGateProvider<int> getRequiredCount;
     private readonly ICallGateProvider<string> getResult;
     private readonly ICallGateProvider<uint, uint, int, string> startItemFarm;
+    private readonly ICallGateProvider<uint, uint, int, bool, string> startItemFarmWithExchange;
     private readonly ICallGateProvider<ushort, int, string> startFateFarm;
+    private readonly ICallGateProvider<ushort, int, bool, string> startFateFarmWithExchange;
     private readonly ICallGateProvider<string, string> getItemFarmResult;
     private readonly ICallGateProvider<string, bool> stopItemFarm;
     private readonly ICallGateProvider<string, bool> enableItemFarmCleanup;
@@ -36,6 +39,7 @@ public sealed class AutoFatreIpcProvider : IDisposable
         this.framework = framework;
         this.controller = controller;
         this.startSingleFate = pluginInterface.GetIpcProvider<ushort, int, bool>("AutoFatre.StartSingleFate");
+        this.startSingleFateWithExchange = pluginInterface.GetIpcProvider<ushort, int, bool, bool>("AutoFatre.StartSingleFateWithExchange");
         this.stop = pluginInterface.GetIpcProvider<object>("AutoFatre.Stop");
         this.getState = pluginInterface.GetIpcProvider<string>("AutoFatre.GetState");
         this.getStatus = pluginInterface.GetIpcProvider<string>("AutoFatre.GetStatus");
@@ -44,8 +48,13 @@ public sealed class AutoFatreIpcProvider : IDisposable
         this.getRequiredCount = pluginInterface.GetIpcProvider<int>("AutoFatre.GetRequiredCount");
         this.getResult = pluginInterface.GetIpcProvider<string>("AutoFatre.GetResult");
         this.startItemFarm = pluginInterface.GetIpcProvider<uint, uint, int, string>("AutoFatre.StartItemFarm");
+        this.startItemFarmWithExchange = pluginInterface.GetIpcProvider<uint, uint, int, bool, string>("AutoFatre.StartItemFarmWithExchange");
         this.startFateFarm = pluginInterface.GetIpcProvider<ushort, int, string>("AutoFatre.StartFateFarm");
+        this.startFateFarmWithExchange = pluginInterface.GetIpcProvider<ushort, int, bool, string>("AutoFatre.StartFateFarmWithExchange");
+        this.startSingleFateWithExchange.RegisterFunc(controller.StartSingleFateWithExchange);
         this.startFateFarm.RegisterFunc(controller.StartFateFarm);
+        this.startItemFarmWithExchange.RegisterFunc(controller.StartItemFarmWithExchange);
+        this.startFateFarmWithExchange.RegisterFunc(controller.StartFateFarmWithExchange);
         this.getItemFarmResult = pluginInterface.GetIpcProvider<string, string>("AutoFatre.GetItemFarmResult");
         this.stopItemFarm = pluginInterface.GetIpcProvider<string, bool>("AutoFatre.StopItemFarm");
         this.enableItemFarmCleanup = pluginInterface.GetIpcProvider<string, bool>("AutoFatre.EnableItemFarmCleanup");
@@ -74,6 +83,7 @@ public sealed class AutoFatreIpcProvider : IDisposable
 
         this.disposed = true;
         this.startSingleFate.UnregisterFunc();
+        this.startSingleFateWithExchange.UnregisterFunc();
         this.stop.UnregisterAction();
         this.getState.UnregisterFunc();
         this.getStatus.UnregisterFunc();
@@ -82,7 +92,9 @@ public sealed class AutoFatreIpcProvider : IDisposable
         this.getRequiredCount.UnregisterFunc();
         this.getResult.UnregisterFunc();
         this.startItemFarm.UnregisterFunc();
+        this.startItemFarmWithExchange.UnregisterFunc();
         this.startFateFarm.UnregisterFunc();
+        this.startFateFarmWithExchange.UnregisterFunc();
         this.getItemFarmResult.UnregisterFunc();
         this.stopItemFarm.UnregisterFunc();
         this.enableItemFarmCleanup.UnregisterFunc();

@@ -42,18 +42,7 @@ public sealed class AetheryteTravelPlanner
             || !IsValidPosition(targetPosition))
             return false;
 
-        IEnumerable<AetheryteTravelPlan> candidates = this.aetheryteList
-            .Where(entry => entry.TerritoryId == territoryId
-                            && !entry.IsSharedHouse
-                            && !entry.IsApartment)
-            .GroupBy(entry => entry.AetheryteId)
-            .Select(group => group
-                .OrderBy(entry => entry.SubIndex != 0)
-                .ThenBy(entry => entry.GilCost)
-                .First())
-            .Select(entry => this.CreatePlan(entry, territoryId, targetPosition))
-            .Where(candidate => candidate is not null)
-            .Select(candidate => candidate!);
+        IEnumerable<AetheryteTravelPlan> candidates = this.FindCandidates(territoryId, targetPosition);
 
         plan = candidates
             .OrderBy(candidate => candidate.DistanceToTarget)
@@ -69,6 +58,24 @@ public sealed class AetheryteTravelPlanner
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Finds the nearest unlocked main aetheryte to a destination. Unlike <see cref="TryFindBest"/>,
+    /// this method deliberately does not compare the route against the current position: callers
+    /// use it when a cross-territory teleport has already been chosen and only need the best
+    /// arrival crystal for the destination NPC or waypoint.
+    /// </summary>
+    public bool TryFindNearest(
+        uint territoryId,
+        Vector3 targetPosition,
+        out AetheryteTravelPlan plan)
+    {
+        plan = this.FindCandidates(territoryId, targetPosition)
+            .OrderBy(candidate => candidate.DistanceToTarget)
+            .ThenBy(candidate => candidate.AetheryteId)
+            .FirstOrDefault()!;
+        return plan is not null;
     }
 
     public static bool ShouldTeleport(
@@ -99,6 +106,25 @@ public sealed class AetheryteTravelPlanner
             territoryId,
             new Vector3(position.Position.X, 0, position.Position.Y),
             Vector2.Distance(position.Position, new Vector2(targetPosition.X, targetPosition.Z)));
+    }
+
+    private IEnumerable<AetheryteTravelPlan> FindCandidates(uint territoryId, Vector3 targetPosition)
+    {
+        if (territoryId == 0 || !IsValidPosition(targetPosition))
+            return [];
+
+        return this.aetheryteList
+            .Where(entry => entry.TerritoryId == territoryId
+                            && !entry.IsSharedHouse
+                            && !entry.IsApartment)
+            .GroupBy(entry => entry.AetheryteId)
+            .Select(group => group
+                .OrderBy(entry => entry.SubIndex != 0)
+                .ThenBy(entry => entry.GilCost)
+                .First())
+            .Select(entry => this.CreatePlan(entry, territoryId, targetPosition))
+            .Where(candidate => candidate is not null)
+            .Select(candidate => candidate!);
     }
 
     private IReadOnlyDictionary<uint, AetherytePosition> BuildAetherytePositions()

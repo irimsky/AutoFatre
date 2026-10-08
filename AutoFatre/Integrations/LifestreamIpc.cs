@@ -13,6 +13,9 @@ public sealed class LifestreamIpc
     private readonly ICallGateSubscriber<uint, byte, bool> teleport;
     private readonly ICallGateSubscriber<uint, bool> aethernetTeleportByPlaceNameId;
     private readonly ICallGateSubscriber<object> abort;
+    private readonly ICallGateSubscriber<bool> canChangeInstance;
+    private readonly ICallGateSubscriber<int> numberOfInstances;
+    private readonly ICallGateSubscriber<int, object> changeInstance;
 
     public LifestreamIpc(IDalamudPluginInterface pluginInterface)
     {
@@ -21,6 +24,10 @@ public sealed class LifestreamIpc
         this.aethernetTeleportByPlaceNameId = pluginInterface.GetIpcSubscriber<uint, bool>(
             "Lifestream.AethernetTeleportByPlaceNameId");
         this.abort = pluginInterface.GetIpcSubscriber<object>("Lifestream.Abort");
+        // Verified against installed Lifestream 2.5.4.17 IPCProvider.
+        this.canChangeInstance = pluginInterface.GetIpcSubscriber<bool>("Lifestream.CanChangeInstance");
+        this.numberOfInstances = pluginInterface.GetIpcSubscriber<int>("Lifestream.GetNumberOfInstances");
+        this.changeInstance = pluginInterface.GetIpcSubscriber<int, object>("Lifestream.ChangeInstance");
     }
 
     public bool IsAvailable
@@ -106,5 +113,18 @@ public sealed class LifestreamIpc
         {
             // Lifestream may have been unloaded while AutoFatre is stopping.
         }
+    }
+
+    public bool TryRestoreInstance(uint instance)
+    {
+        try
+        {
+            if (instance is < 1 or > 9 || !this.canChangeInstance.HasFunction || !this.numberOfInstances.HasFunction
+                || !this.changeInstance.HasAction || !this.canChangeInstance.InvokeFunc()
+                || this.numberOfInstances.InvokeFunc() < instance) return false;
+            this.changeInstance.InvokeAction((int)instance);
+            return true;
+        }
+        catch { return false; }
     }
 }
