@@ -32,6 +32,7 @@ public enum AutomationState
     Recovering,
     Faulted,
     RepositioningForLanding,
+    ExchangingGemstones,
 }
 
 public enum DiagnosticSeverity

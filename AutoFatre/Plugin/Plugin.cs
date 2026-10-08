@@ -42,7 +42,8 @@ public sealed class Plugin : IAsyncDalamudPlugin
         IDataManager dataManager,
         IAddonLifecycle addonLifecycle,
         IGameGui gameGui,
-        IGameInteropProvider gameInteropProvider)
+        IGameInteropProvider gameInteropProvider,
+        ITextureProvider textureProvider)
     {
         this.pluginInterface = pluginInterface;
         this.log = log;
@@ -87,6 +88,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
             aetheryteTravelPlanner,
             dataManager,
             vnavmesh,
+            new VnavmeshStatusIpc(pluginInterface),
             lifestream,
             fateRepository,
             this.staticFateCatalog,
@@ -113,6 +115,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
             this.SetOverlayWindowVisibility,
             this.OpenSettingsWindow);
         this.settingsWindow = new AutoFatreSettingsWindow(pluginInterface, this.configuration, this.window.DrawSettingsPage);
+        this.window.SetExchangeTextureProvider(textureProvider);
         this.overlayWindow = new AutoFatreOverlayWindow(pluginInterface, this.configuration, this.window, this.OpenSettingsWindow);
         this.windowSystem.AddWindow(this.window);
         this.windowSystem.AddWindow(this.overlayWindow);
@@ -129,7 +132,8 @@ public sealed class Plugin : IAsyncDalamudPlugin
     {
         await Task.WhenAll(
                 this.staticFateCatalog.LoadAsync(cancellationToken),
-                this.staticFateTerritoryCatalog.LoadAsync(cancellationToken))
+                this.staticFateTerritoryCatalog.LoadAsync(cancellationToken),
+                this.controller.ExchangeCatalog.LoadAsync(cancellationToken))
             .ConfigureAwait(false);
         this.selectionCatalog.Load();
         this.log.Information(

@@ -213,6 +213,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     private bool preparingGroundArrivalPending;
     private bool mapArrivalCheckPending;
     private DateTime teleportStartedAt = DateTime.MinValue;
+    private DateTime teleportRequestRetryAt = DateTime.MinValue;
+    private DateTime teleportRequestRejectedSince = DateTime.MinValue;
     private uint teleportCandidateTerritory;
     private readonly HashSet<(uint AetheryteId, byte SubIndex)> failedTeleportCandidates = [];
     private uint teleportIssuedAetheryteId;
@@ -311,6 +313,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     private ushort? temporaryPreviousTargetFateId;
     private List<ushort> temporaryPreviousTargetFateIds = [];
     private bool temporaryPreviousEnabled;
+    private bool allowExchangeForExternalFarm;
     private bool raiseAcceptIssued;
     private bool disposed;
     private string statusReason = "未启动";
@@ -332,6 +335,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         AetheryteTravelPlanner aetheryteTravelPlanner,
         IDataManager dataManager,
         VnavmeshIpc vnavmesh,
+        VnavmeshStatusIpc vnavmeshStatus,
         LifestreamIpc lifestream,
         FateRepository fates,
         StaticFateCatalog staticFateCatalog,
@@ -363,7 +367,11 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.aetheryteTravelPlanner = aetheryteTravelPlanner;
         this.dataManager = dataManager;
         this.gameGui = gameGui;
+        this.exchangeCatalog = new GemstoneExchangeCatalog(dataManager, log);
+        this.exchangeShop = new ShopExchangeAdapter(gameGui, targetManager, addonLifecycle, log,
+            dataManager.GetExcelSheet<Lumina.Excel.Sheets.Item>().GetRow(GemstoneExchangeCatalog.CurrencyItemId).Icon);
         this.vnavmesh = vnavmesh;
+        this.exchangeNavigationStatus = vnavmeshStatus;
         this.lifestream = lifestream;
         this.fates = fates;
         this.staticFateCatalog = staticFateCatalog;
@@ -399,7 +407,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     }
 
     public AutomationState State => this.state;
-    public bool IsRunning => (this.configuration.Enabled && this.state is not AutomationState.Stopped) || this.manualDutyRoundTrip;
+    public bool IsRunning => (this.configuration.Enabled && this.state is not AutomationState.Stopped) || this.manualDutyRoundTrip || this.IsExchanging || this.exchangeRequested;
     public bool IsPaused => this.state is AutomationState.Paused or AutomationState.Faulted;
     public string StatusReason => this.statusReason;
     public ushort? ActiveFateIdSnapshot => this.activeFateId ?? this.pendingFateResult?.Fate.FateId;
@@ -495,6 +503,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     public void NavigateToFateForUi(ushort fateId)
     {
+        if (this.IsExchanging || this.exchangeRequested) this.Stop("用户切换为仅导航，取消兑换");
         if (this.itemFarmMaps is not null) this.Stop("用户切换为仅导航");
         if (this.fates.Find(fateId) is not { } fate)
             return;
@@ -508,22 +517,32 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     public void SetTemporaryTargetFateForUi(ushort fateId)
     {
+        if (this.IsExchanging || this.exchangeRequested) this.Stop("用户切换临时 FATE，取消兑换");
         this.BeginTemporaryTargetFate(fateId, 1, "UI 临时目标 FATE", updateSingleFateResult: false);
     }
 
     /// <summary>Starts an in-memory one-shot FATE objective for an external automation plugin.</summary>
     public bool StartSingleFate(ushort fateId, int requiredCount)
+        => this.StartSingleFate(fateId, requiredCount, enableExchange: false);
+
+    public bool StartSingleFateWithExchange(ushort fateId, int requiredCount, bool enableExchange)
+        => this.StartSingleFate(fateId, requiredCount, enableExchange);
+
+    private bool StartSingleFate(ushort fateId, int requiredCount, bool enableExchange)
     {
-        if (fateId == 0 || requiredCount <= 0 || this.state != AutomationState.Stopped || this.temporaryTargetActive || this.itemFarmMaps is not null)
+        if (fateId == 0 || requiredCount <= 0 || this.state != AutomationState.Stopped || this.temporaryTargetActive || this.itemFarmMaps is not null || this.exchangeRequested || this.IsExchanging)
             return false;
 
         _ = this.framework.RunOnFrameworkThread(() =>
-            this.BeginTemporaryTargetFate(fateId, requiredCount, "IPC 单 FATE", updateSingleFateResult: true));
+            this.BeginTemporaryTargetFate(fateId, requiredCount, "IPC 单 FATE", updateSingleFateResult: true,
+                allowExchangeForExternalFarm: enableExchange));
         return true;
     }
 
-    private void BeginTemporaryTargetFate(ushort fateId, int requiredCount, string reason, bool updateSingleFateResult)
+    private void BeginTemporaryTargetFate(ushort fateId, int requiredCount, string reason, bool updateSingleFateResult,
+        bool allowExchangeForExternalFarm = false)
     {
+        if (this.IsExchanging || this.exchangeRequested) return;
         if (this.itemFarmMaps is not null) return;
         FateSnapshot? fate = this.fates.Find(fateId);
         bool hasMappedTerritory = this.staticFateTerritoryCatalog.TryGet(fateId, out FateTerritoryEntry? territoryEntry);
@@ -553,6 +572,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             this.temporaryPreviousTargetFateId = this.configuration.TargetFateId;
             this.temporaryPreviousTargetFateIds = this.configuration.TargetFateIds.ToList();
             this.temporaryPreviousEnabled = this.configuration.Enabled;
+            this.allowExchangeForExternalFarm = allowExchangeForExternalFarm;
         }
 
         this.CancelOwnedActions();
@@ -587,12 +607,14 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     public void Start()
     {
+        if (this.IsExchanging || this.exchangeRequested) this.Stop("用户重新启动自动化，取消当前兑换");
         if (this.itemFarmMaps is not null) this.Stop("用户重新启动自动化");
         this.StartCore();
     }
 
     private void StartCore()
     {
+        this.exchangeCompletedContext = null;
         this.fateAlertTracking.Reset();
         this.pendingSoundAlerts.Clear();
         this.soundAlertCooldowns.Clear();
@@ -620,6 +642,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.idleFlightRaised = false;
         this.idleFlightDiagnosticAt = DateTime.MinValue;
         this.teleportArrival.CancelRequest();
+        this.teleportRequestRetryAt = DateTime.MinValue;
+        this.teleportRequestRejectedSince = DateTime.MinValue;
         this.mapArrivalCheckPending = false;
         this.preparingGroundArrivalPending = false;
         this.ResetFailedTeleportCandidates();
@@ -631,16 +655,20 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     public void Stop(string reason = "已由用户停止")
     {
+        this.ResetExchange();
         this.fateAlertTracking.Reset();
         this.pendingSoundAlerts.Clear();
         this.noFateStopTimer.Reset();
         bool restoreTemporary = this.temporaryTargetActive;
         bool restoreItemFarm = this.itemFarmMaps is not null;
         this.configuration.Enabled = false;
+        this.allowExchangeForExternalFarm = false;
         this.fateCompletions.Stop();
         this.PublishFateRewardContext();
         this.startupGroundCheckPending = false;
         this.startupFateRangeSelectionPending = false;
+        this.teleportRequestRetryAt = DateTime.MinValue;
+        this.teleportRequestRejectedSince = DateTime.MinValue;
         this.mapArrivalCheckPending = false;
         this.preparingGroundArrivalPending = false;
         this.CancelOwnedActions();
@@ -657,6 +685,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     public void Pause(string reason = "已由用户暂停")
     {
+        if (this.IsExchanging) this.exchangeStatus = reason;
         this.noFateStopTimer.Reset();
         this.fateAlertTracking.ResetPlayers();
         this.pendingSoundAlerts.Clear();
@@ -668,6 +697,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     public void Retry()
     {
+        if (this.ResumeExchange()) return;
         if (!this.configuration.Enabled)
             this.configuration.Enabled = true;
         if (!this.fateCompletions.Tracking)
@@ -693,6 +723,12 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     {
         if (this.disposed)
             return;
+
+        if (this.IsExchanging || this.exchangeRequested)
+        {
+            this.AddDiagnostic(DiagnosticSeverity.Warning, "兑换期间不能执行副本进退，请先取消兑换");
+            return;
+        }
 
         if (this.state == AutomationState.ResettingAggroViaDuty)
         {
@@ -1025,6 +1061,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.clientState.Logout -= this.OnLogout;
         this.clientState.TerritoryChanged -= this.OnTerritoryChanged;
         this.CancelOwnedActions();
+        this.exchangeShop.Dispose();
         this.dutyAggroReset.Dispose();
         this.levelSync.Dispose();
         this.travelSession.Dispose();
@@ -1034,6 +1071,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void OnLogin()
     {
+        if (this.IsExchanging) return;
         if (this.state == AutomationState.Paused)
             return;
         // A duty transition can raise Login again after the client has loaded the
@@ -1054,6 +1092,11 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void OnLogout(int _, int __)
     {
+        if (this.IsExchanging)
+        {
+            if (!this.exchangeTeleportOwned && !this.exchangeInstanceOwned && !this.IsBetweenAreas()) this.FailExchange("角色退出，原兑换保持暂停");
+            return;
+        }
         this.noFateStopTimer.Reset();
         this.fateAlertTracking.ResetPlayers();
         this.pendingSoundAlerts.Clear();
@@ -1066,6 +1109,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             // clear the duty phase here: the next update must continue the exit sequence.
             this.StopNavigationOperation();
             this.landing.StopDescending();
+            this.exchangeLandingSession?.Reset();
             this.Transition(AutomationState.ResettingAggroViaDuty, "伊弗利特副本进退区域切换中，保持退出流程");
             return;
         }
@@ -1090,6 +1134,19 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void OnTerritoryChanged(uint territory)
     {
+        if (this.IsExchanging)
+        {
+            this.noFateStopTimer.Reset();
+            this.StopNavigationOperation();
+            this.landing.StopDescending();
+            this.territoryStableAfter = DateTime.UtcNow.AddSeconds(2);
+            this.entryPetSummonedTerritory = null;
+            this.entryPetRetryAt = DateTime.MinValue;
+            this.exchangeShop.ForgetOwnership();
+            if (!this.exchangeTeleportOwned && !this.exchangeInstanceOwned && this.state is not AutomationState.DeadWaitingForRaise and not AutomationState.DeadReturning)
+                this.FailExchange("兑换途中发生非预期切图，已暂停并保留对账记录");
+            return;
+        }
         this.noFateStopTimer.Reset();
         this.fateAlertTracking.ResetPlayers();
         this.pendingSoundAlerts.Remove("FATE 范围内新增玩家");
@@ -1173,6 +1230,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         // Path.Stop cannot cancel a pending SimpleMove calculation. Drain late results even
         // after ending the travel session, while paused, or during an action throttle.
         this.travelSession.PumpCancellation();
+        if (this.HandleExchangeExclusive(now)) return;
         this.ObserveCombatApproachCast(now);
         if (!this.CanObserveMap(now))
         {
@@ -1378,6 +1436,25 @@ public sealed unsafe partial class FateAutomationController : IDisposable
                 return;
             }
             bool waitingForInventorySettlement = now < this.presetConditionRecheckUntil;
+            // Exchange must be considered before preset stop conditions. Otherwise a completed
+            // FATE can advance the map/sequence and start the next FATE before the gemstone
+            // threshold is checked by ScanAndSelectFate.
+            if (this.configuration.GemstoneExchange.Enabled
+                && now < this.exchangeSettlementUntil)
+            {
+                this.statusReason = "等待本场 FATE 双色宝石结算后检查自动兑换";
+                this.nextActionAt = this.exchangeSettlementUntil;
+                return;
+            }
+            if (this.TryBeginExchange(now))
+                return;
+            if (this.IsAutomaticExchangeDue())
+            {
+                this.statusReason = "双色宝石已达到兑换门槛，等待兑换条件稳定";
+                this.nextActionAt = now.AddMilliseconds(500);
+                return;
+            }
+
             if (this.CheckPresetStopCondition(logUnmet: waitingForInventorySettlement))
                 return;
 
@@ -1889,21 +1966,20 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             this.Transition(AutomationState.WaitingForTerritory, "等待传送区域加载稳定");
             return;
         }
-        // An external map request must reach its own territory before consuming
-        // the startup shortcut. A FATE underfoot can belong to the previous map.
-        if (this.itemFarmMaps is not null && this.startupFateRangeSelectionPending
-            && this.clientState.TerritoryType != this.GetCurrentPlan().TerritoryId)
-        {
-            this.startupFateRangeSelectionPending = false;
-            this.AddDiagnostic(DiagnosticSeverity.Information,
-                $"临时请求先前往目标地图，不接当前脚下FATE：当前={this.clientState.TerritoryType}，目标={this.GetCurrentPlan().TerritoryId}");
-        }
+        // Startup can happen beside a configured gemstone vendor while the farming
+        // plan points at another map. Give the exchange gate the same priority here
+        // that it already has before selecting the next FATE.
+        if (this.TryBeginExchange(now))
+            return;
         if (this.startupFateRangeSelectionPending
+            && this.CanUseStartupFateRangeShortcut(now)
             && this.SelectFateInCurrentRange(now) is { } startupFate)
         {
             this.BeginStartupFateImmediately(startupFate, now);
             return;
         }
+        if (this.startupFateRangeSelectionPending)
+            this.startupFateRangeSelectionPending = false;
         if (this.startupGroundCheckPending)
         {
             this.startupGroundCheckPending = false;
@@ -1931,6 +2007,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         {
             this.mapReentryTerritory = null;
             this.ResetFailedTeleportCandidates();
+            this.teleportRequestRetryAt = DateTime.MinValue;
+            this.teleportRequestRejectedSince = DateTime.MinValue;
             this.AddDiagnostic(
                 DiagnosticSeverity.Debug,
                 $"已位于目标地图 Territory={desiredTerritory}，跳过传送至地图水晶，直接进入本地图流程");
@@ -2031,13 +2109,23 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             return;
         }
 
+        if (!this.CanIssueMapTeleport())
+        {
+            this.statusReason = "等待角色状态稳定后请求地图传送";
+            this.nextActionAt = now.AddMilliseconds(500);
+            return;
+        }
+
         this.PrepareTeleportCandidates(desiredTerritory);
         IAetheryteEntry? teleportTarget = this.ResolveNextTeleportAetheryte(desiredTerritory);
         if (teleportTarget is null)
         {
+            bool hadCandidates = this.ResolveTeleportAetherytes(desiredTerritory).Count > 0;
             this.Stop(needsIdyllshireFallback
                 ? $"目标地图 {plan.TerritoryId} 无直达以太之光，且未找到已解锁的田园郡入口或目标都市传送网节点。"
-                : $"目标地图 {desiredTerritory} 没有可用的已解锁以太之光。");
+                : hadCandidates
+                    ? $"地图 {desiredTerritory} 的传送入口均已尝试失败，不能确认其是否仍可用。"
+                    : $"地图 {desiredTerritory} 没有已解锁的以太之光入口。");
             return;
         }
 
@@ -2045,16 +2133,29 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.landing.StopDescending();
         if (this.vnavmesh.IsMoveActive)
             return;
+        if (now < this.teleportRequestRetryAt)
+            return;
+
         if (!this.lifestream.Teleport(teleportTarget.AetheryteId, teleportTarget.SubIndex))
         {
-            this.failedTeleportCandidates.Add((teleportTarget.AetheryteId, teleportTarget.SubIndex));
+            this.teleportRequestRejectedSince = this.teleportRequestRejectedSince == DateTime.MinValue
+                ? now
+                : this.teleportRequestRejectedSince;
+            this.teleportRequestRetryAt = now.AddSeconds(1);
             this.AddDiagnostic(
                 DiagnosticSeverity.Warning,
-                $"Lifestream 拒绝传送至默认以太之光 {teleportTarget.AetheryteId}:{teleportTarget.SubIndex}，准备尝试下一个已解锁入口");
-            this.nextActionAt = now;
+                $"Lifestream 暂时拒绝传送至默认以太之光 {teleportTarget.AetheryteId}:{teleportTarget.SubIndex}，1 秒后重试（不要立即判定为未解锁）");
+            if (now - this.teleportRequestRejectedSince >= TimeSpan.FromSeconds(30))
+            {
+                this.Stop($"Lifestream 持续拒绝传送至地图 {desiredTerritory}，请确认角色已完成加载且 Lifestream 可用。");
+                return;
+            }
+            this.nextActionAt = this.teleportRequestRetryAt;
             return;
         }
 
+        this.teleportRequestRetryAt = DateTime.MinValue;
+        this.teleportRequestRejectedSince = DateTime.MinValue;
         this.teleportIssuedByUs = true;
         this.teleportBusyObserved = false;
         this.teleportIssuedAetheryteId = teleportTarget.AetheryteId;
@@ -2408,6 +2509,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
         this.teleportCandidateTerritory = territoryId;
         this.failedTeleportCandidates.Clear();
+        this.teleportRequestRetryAt = DateTime.MinValue;
+        this.teleportRequestRejectedSince = DateTime.MinValue;
         this.teleportIssuedAetheryteId = 0;
         this.teleportIssuedSubIndex = 0;
     }
@@ -2416,6 +2519,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     {
         this.teleportCandidateTerritory = 0;
         this.failedTeleportCandidates.Clear();
+        this.teleportRequestRetryAt = DateTime.MinValue;
+        this.teleportRequestRejectedSince = DateTime.MinValue;
         this.teleportIssuedAetheryteId = 0;
         this.teleportIssuedSubIndex = 0;
     }
@@ -2426,14 +2531,29 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             this.failedTeleportCandidates.Add((this.teleportIssuedAetheryteId, this.teleportIssuedSubIndex));
 
         this.AddDiagnostic(DiagnosticSeverity.Warning, reason);
+        this.teleportRequestRetryAt = DateTime.MinValue;
+        this.teleportRequestRejectedSince = DateTime.MinValue;
         if (this.ResolveNextTeleportAetheryte(territoryId) is not null)
         {
             this.nextActionAt = DateTime.UtcNow.AddSeconds(1);
             return;
         }
 
-        this.Stop($"地图 {territoryId} 的默认以太之光均不可用，已停止自动模式。");
+        this.Stop($"地图 {territoryId} 的传送入口均尝试失败，已停止自动模式。");
     }
+
+    private bool CanIssueMapTeleport() =>
+        this.clientState.IsLoggedIn
+        && this.playerState.IsLoaded
+        && this.objectTable.LocalPlayer is not null
+        && !this.condition[ConditionFlag.InCombat]
+        && !this.condition[ConditionFlag.Casting]
+        && !this.condition[ConditionFlag.Casting87]
+        && !this.condition[ConditionFlag.Occupied]
+        && !this.condition[ConditionFlag.OccupiedInEvent]
+        && !this.condition[ConditionFlag.OccupiedInQuestEvent]
+        && !this.condition[ConditionFlag.OccupiedInCutSceneEvent]
+        && !this.mount.IsMountTransition;
 
     private void ScanAndSelectFate(DateTime now)
     {
@@ -2443,8 +2563,23 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             return;
         }
 
+        if (now < this.exchangeSettlementUntil && (this.exchangeRequested || this.configuration.GemstoneExchange.Enabled))
+        {
+            this.statusReason = "等待本场 FATE 宝石奖励结算后检查兑换计划";
+            this.nextActionAt = this.exchangeSettlementUntil;
+            return;
+        }
+        if (this.TryBeginExchange(now)) return;
+        if (this.IsAutomaticExchangeDue())
+        {
+            this.statusReason = "双色宝石已达到兑换门槛，等待兑换条件稳定";
+            this.nextActionAt = now.AddMilliseconds(500);
+            return;
+        }
+
         IReadOnlyList<ushort> priorityTargets = this.GetPriorityTargetFateIds();
-        bool forceCurrentRange = this.startupFateRangeSelectionPending;
+        bool forceCurrentRange = this.startupFateRangeSelectionPending
+            && this.CanUseStartupFateRangeShortcut(now);
         this.startupFateRangeSelectionPending = false;
         FateSnapshot? target = forceCurrentRange
             ? this.SelectFateInCurrentRange(now)
@@ -2760,6 +2895,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             this.ClearCurrentMapTerritory();
         }
         this.configuration.Enabled = restoreEnabled && this.temporaryPreviousEnabled;
+        this.allowExchangeForExternalFarm = false;
         this.AddDiagnostic(
             DiagnosticSeverity.Information,
             $"临时目标已结束（{reason}），恢复模式={this.EffectiveMode}，目标 FATE={this.configuration.TargetFateId?.ToString() ?? "无"}，原运行状态={this.configuration.Enabled}");
@@ -3064,13 +3200,36 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             return true;
         }
 
+        AtkUnitBase* talk = this.GetAddon("Talk");
         if (this.preparationTextAdvanceEnabled && this.textAdvance.IsActive)
         {
-            this.statusReason = "TextAdvance 正在推进 FATE 开启 NPC 任务接受对话";
-            return true;
+            // TextAdvance normally consumes ordinary quest-accept pages.  Some FATE
+            // opener NPCs instead leave a custom event Talk page visible; in that case
+            // TextAdvance can remain externally active without making any progress.
+            // Give it a short opportunity, then take the page back and use the native
+            // callback below.  This also avoids treating another plugin's global lease
+            // as proof that this specific conversation is being advanced.
+            if (talk is null || !talk->IsVisible)
+            {
+                this.statusReason = "TextAdvance 正在推进 FATE 开启 NPC 任务接受对话";
+                return true;
+            }
+
+            if (this.preparationTalkStartedAt == DateTime.MinValue)
+                this.preparationTalkStartedAt = now;
+            if (now - this.preparationTalkStartedAt < TimeSpan.FromSeconds(2))
+            {
+                this.statusReason = "TextAdvance 正在推进 FATE 开启 NPC 任务接受对话";
+                return true;
+            }
+
+            this.textAdvance.Disable();
+            this.preparationTextAdvanceEnabled = false;
+            this.AddDiagnostic(
+                DiagnosticSeverity.Warning,
+                "TextAdvance 未推进 FATE 开启 NPC 特殊对话，已切换为原生 Talk 回调");
         }
 
-        AtkUnitBase* talk = this.GetAddon("Talk");
         if (talk is not null && talk->IsVisible)
         {
             if (this.preparationTalkStartedAt == DateTime.MinValue)
@@ -3706,7 +3865,9 @@ public sealed unsafe partial class FateAutomationController : IDisposable
                 LandingTimeout = LandingTimeout,
                 NoFlyLandingPoint = zone?.LandingPoint,
                 LandingApproach = purpose == NavigationPurpose.LandingRecovery,
-                AllowFlightRecovery = purpose is not NavigationPurpose.ReturnToFate and not NavigationPurpose.PreSyncPosition,
+                AllowFlightRecovery = purpose is not NavigationPurpose.ReturnToFate and not NavigationPurpose.PreSyncPosition
+                    && (purpose != NavigationPurpose.GemstoneVendor
+                        || !this.exchangeGroundApproach && this.mount.IsReadyForNavigation && this.ExchangeCanFly()),
             });
         this.travelSessionActive = true;
         this.nextTravelSnapshotAt = DateTime.MinValue;
@@ -6957,6 +7118,16 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void FinalizePendingFateResult()
     {
+        this.exchangeSettlementUntil = DateTime.UtcNow.AddSeconds(3);
+        if (this.configuration.GemstoneExchange.Enabled
+            && this.TryGetGemstones(out uint settlementBalance, out uint settlementCap))
+        {
+            this.AddDiagnostic(
+                DiagnosticSeverity.Information,
+                $"FATE 结算进入自动兑换检查：双色宝石={settlementBalance}/{settlementCap}，" +
+                $"门槛={this.configuration.GemstoneExchange.Threshold}，" +
+                $"兑换将在奖励结算窗口结束后检查");
+        }
         PendingFateResult? result = this.pendingFateResult;
         if (result is null)
         {
@@ -7365,6 +7536,33 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         .Where(fateId => fateId != 0 && !this.configuration.FateBlacklist.Contains(fateId))
         .ToArray();
 
+    private bool HasExecutableTargetFate(DateTime now)
+    {
+        IReadOnlyList<ushort> targets = this.GetPriorityTargetFateIds();
+        return targets.Count > 0
+            && this.GetEligibleFates(now).Any(fate => targets.Contains(fate.FateId));
+    }
+
+    private bool CanUseStartupFateRangeShortcut(DateTime now)
+    {
+        PlanContext plan = this.GetCurrentPlan();
+        if (this.clientState.TerritoryType != plan.TerritoryId)
+        {
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"启动时当前地图不是目标地图，不接当前脚下 FATE：当前={this.clientState.TerritoryType}，目标={plan.TerritoryId}");
+            return false;
+        }
+
+        if (this.HasExecutableTargetFate(now))
+        {
+            this.AddDiagnostic(DiagnosticSeverity.Debug,
+                "启动时已有可执行的目标 FATE，不接当前范围内普通 FATE，改按目标优先级选择");
+            return false;
+        }
+
+        return true;
+    }
+
     private PlanContext GetCurrentPlan()
     {
             if (this.EffectiveMode == AutomationMode.PresetSequence && this.GetPresetMaps().Count > 0)
@@ -7733,6 +7931,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void CancelOwnedActions()
     {
+        this.SuspendExchangeActions();
         this.companionChocoboActionPending = false;
         this.StopNavigationOperation();
         this.landing.StopDescending();

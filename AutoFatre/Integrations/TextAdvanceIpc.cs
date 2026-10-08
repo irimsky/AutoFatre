@@ -45,6 +45,9 @@ public sealed class TextAdvanceIpc(IDalamudPluginInterface pluginInterface) : ID
         }
     }
 
+    /// <summary>Whether this plugin successfully owns the external-control lease.</summary>
+    public bool OwnsControl => this.activated && this.IsActive;
+
     public bool EnableForCollection()
     {
         if (!this.IsAvailable)
@@ -64,7 +67,9 @@ public sealed class TextAdvanceIpc(IDalamudPluginInterface pluginInterface) : ID
                     EnableAutoInteract = false,
                 });
             this.activated |= accepted;
-            return accepted || this.IsActive;
+            // IsInExternalControl is global.  Another plugin may own the lease, in
+            // which case reporting true would make AutoFatre stop advancing its own UI.
+            return accepted || this.OwnsControl;
         }
         catch
         {
@@ -87,12 +92,32 @@ public sealed class TextAdvanceIpc(IDalamudPluginInterface pluginInterface) : ID
                     EnableAutoInteract = false,
                 });
             this.activated |= accepted;
-            return accepted || this.IsActive;
+            // Do not mistake another plugin's external-control lease for ours.  FATE
+            // opener dialogs are special Talk pages and must fall back to native
+            // callbacks when TextAdvance did not accept this request.
+            return accepted || this.OwnsControl;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>Temporarily suppress TextAdvance's global dialogue handling while our shop adapter owns it.</summary>
+    public void EnableForExchange()
+    {
+        if (!this.IsAvailable) return;
+        try
+        {
+            bool accepted = this.enableExternalControl.InvokeFunc(this.pluginName, new TextAdvanceTerritoryConfig
+            {
+                EnableQuestAccept = false, EnableQuestComplete = false, EnableRewardPick = false,
+                EnableRequestHandin = false, EnableRequestFill = false, EnableAutoInteract = false,
+                EnableTalkSkip = false, EnableCutsceneEsc = false, EnableCutsceneSkipConfirm = false,
+            });
+            this.activated |= accepted;
+        }
+        catch { /* Optional plugin may be absent or controlled by another caller. */ }
     }
 
     public void Disable()
@@ -123,5 +148,8 @@ public sealed class TextAdvanceIpc(IDalamudPluginInterface pluginInterface) : ID
         public bool? EnableRequestHandin;
         public bool? EnableRequestFill;
         public bool? EnableAutoInteract;
+        public bool? EnableTalkSkip;
+        public bool? EnableCutsceneEsc;
+        public bool? EnableCutsceneSkipConfirm;
     }
 }

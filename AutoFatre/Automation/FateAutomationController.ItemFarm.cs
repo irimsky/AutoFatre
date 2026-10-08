@@ -26,6 +26,12 @@ public sealed unsafe partial class FateAutomationController
     // Synchronous Framework-only contract. No queued start survives an accepted stop.
     // Target is an absolute inventory count; callers can request baseline + desired gain.
     public string StartItemFarm(uint territory, uint item, int target)
+        => this.StartItemFarm(territory, item, target, enableExchange: false);
+
+    public string StartItemFarmWithExchange(uint territory, uint item, int target, bool enableExchange)
+        => this.StartItemFarm(territory, item, target, enableExchange);
+
+    private string StartItemFarm(uint territory, uint item, int target, bool enableExchange)
     {
         if (!this.framework.IsInFrameworkUpdateThread || this.disposed || this.framework.IsFrameworkUnloading
             || territory == 0 || item == 0 || target <= 0 || this.IsRunning
@@ -35,6 +41,7 @@ public sealed unsafe partial class FateAutomationController
         var territoryRow = this.dataManager.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>().GetRowOrDefault(territory);
         if (itemRow is null || territoryRow is null || string.IsNullOrEmpty(itemRow.Value.Name.ToString())) return "";
         this.itemFarmToken = Guid.NewGuid().ToString("N");
+        this.allowExchangeForExternalFarm = enableExchange;
         this.itemFarmResult = "Running";
         this.itemFarmCleanupEnabled = false;
         this.ResetExternalProgress();
@@ -55,6 +62,12 @@ public sealed unsafe partial class FateAutomationController
     // Uses the same owned request/result/cleanup contract as item farming.
     // A private preset keeps the user's targets, mode and completion policy intact.
     public string StartFateFarm(ushort fateId, int requiredCount)
+        => this.StartFateFarm(fateId, requiredCount, enableExchange: false);
+
+    public string StartFateFarmWithExchange(ushort fateId, int requiredCount, bool enableExchange)
+        => this.StartFateFarm(fateId, requiredCount, enableExchange);
+
+    private string StartFateFarm(ushort fateId, int requiredCount, bool enableExchange)
     {
         if (!this.framework.IsInFrameworkUpdateThread || this.disposed || this.framework.IsFrameworkUnloading
             || fateId == 0 || requiredCount <= 0 || this.IsRunning || this.state != AutomationState.Stopped
@@ -62,6 +75,7 @@ public sealed unsafe partial class FateAutomationController
             || !this.staticFateTerritoryCatalog.TryGet(fateId, out FateTerritoryEntry? entry) || entry is null)
             return "";
         this.itemFarmToken = Guid.NewGuid().ToString("N");
+        this.allowExchangeForExternalFarm = enableExchange;
         this.itemFarmResult = "Running";
         this.itemFarmCleanupEnabled = false;
         this.ResetExternalProgress();
