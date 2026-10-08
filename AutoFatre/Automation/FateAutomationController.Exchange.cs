@@ -49,6 +49,9 @@ public sealed unsafe partial class FateAutomationController
     private string exchangeStatus = "未运行";
     private DateTime exchangeGateLogAt = DateTime.MinValue;
     private string exchangeGateLogMessage = string.Empty;
+    private string? exchangeCompletedContext;
+    private DateTime exchangeContextCheckAt;
+    private readonly HashSet<(uint Shop, uint Npc, uint Territory)> exchangeUnavailableShops = [];
 
     public GemstoneExchangeCatalog ExchangeCatalog => this.exchangeCatalog;
     public bool IsExchanging => this.exchangePlan is not null;
@@ -74,7 +77,39 @@ public sealed unsafe partial class FateAutomationController
         if (!settings.Enabled || !this.TryGetGemstones(out uint balance, out uint cap))
             return false;
 
-        return balance >= Math.Min((uint)settings.Threshold, cap);
+        return balance >= Math.Min((uint)settings.Threshold, cap) && !this.IsExchangeContextUnchanged(settings, balance);
+    }
+
+    // After a full pass, wait for a meaningful input change rather than visiting the same
+    // unavailable shops every scan. Manual requests always bypass this in-memory suppression.
+    private bool IsExchangeContextUnchanged(GemstoneExchangeSettings settings, uint balance)
+    {
+        if (this.exchangeCompletedContext is null) return false;
+        DateTime now = DateTime.UtcNow;
+        if (now < this.exchangeContextCheckAt) return true;
+        this.exchangeContextCheckAt = now.AddSeconds(1);
+        if (this.exchangeCompletedContext == this.ExchangeAttemptContext(settings, balance)) return true;
+        this.exchangeCompletedContext = null;
+        return false;
+    }
+
+    private string ExchangeAttemptContext(GemstoneExchangeSettings settings, uint balance)
+    {
+        var context = new System.Text.StringBuilder();
+        context.Append(this.playerState.ContentId).Append('|').Append(balance).Append('|')
+            .Append(settings.Enabled).Append('|').Append(settings.Threshold).Append('|').Append(settings.Reserve);
+        foreach (var rule in settings.Rules)
+        {
+            var product = this.exchangeCatalog.Find(rule);
+            context.Append(';').Append(rule.Id).Append(',').Append(rule.Enabled).Append(',').Append(rule.ItemId)
+                .Append(',').Append(rule.ShopId).Append(',').Append(rule.NpcId).Append(',').Append(rule.TerritoryId)
+                .Append(',').Append(rule.QuantityMode).Append(',').Append(rule.TargetQuantity).Append(',').Append(rule.SkipIfUsed)
+                .Append(',').Append(this.inventoryCounter.Count(rule.ItemId));
+            if (product is not null)
+                context.Append(',').Append(this.inventoryCounter.PurchaseCapacity(product.ItemId, product.StackSize))
+                    .Append(',').Append(this.GetExchangeItemUseStatus(product));
+        }
+        return context.ToString();
     }
 
     public void RequestGemstoneExchange() => _ = this.framework.RunOnFrameworkThread(() =>
@@ -130,6 +165,7 @@ public sealed unsafe partial class FateAutomationController
             : "无法读取双色宝石数量";
         else if (!this.exchangeCatalog.IsLoaded) gate = $"商品目录未加载：{this.exchangeCatalog.Error ?? "无错误信息"}";
         else if (!hasGemstones) gate = "无法读取双色宝石数量";
+        else if (!this.exchangeRequested && this.IsExchangeContextUnchanged(settings, balance)) gate = "本轮兑换项目已检查，等待余额、计划或背包状态变化；可立即兑换重新检查解锁状态";
         else if (this.exchangeShop.HasBlockingUi || this.condition[ConditionFlag.OccupiedInQuestEvent]) gate = "已有对话/商店界面占用";
 
         if (gate is not null)
@@ -144,6 +180,8 @@ public sealed unsafe partial class FateAutomationController
         if (this.exchangeShop.HasBlockingUi || this.condition[ConditionFlag.OccupiedInQuestEvent])
         { this.exchangeStatus = "等待已有对话或商店关闭后兑换"; return false; }
         this.exchangeRequested = false;
+        this.exchangeCompletedContext = null;
+        this.exchangeUnavailableShops.Clear();
         this.exchangePlan = settings.Copy();
         this.exchangePlan.Threshold = Math.Min(this.exchangePlan.Threshold, (int)currencyCap);
         this.exchangePlan.Normalize();
@@ -282,30 +320,14 @@ public sealed unsafe partial class FateAutomationController
             var rule = plan.Rules[this.exchangeRuleIndex];
             var product = this.exchangeCatalog.Find(rule);
             if (!rule.Enabled) { this.exchangeRuleIndex++; continue; }
-            if (product is null) { this.FailExchange($"第 {this.exchangeRuleIndex + 1} 项商品或商人数据失效，请重新选择"); return; }
-            if (rule.SkipIfUsed)
+            if (product is null)
             {
-                ItemUseStatus use = this.GetExchangeItemUseStatus(product);
-                if (use == ItemUseStatus.WaitingForCharacter) { this.exchangeStatus = "等待角色收藏解锁状态"; return; }
-                if (use == ItemUseStatus.Unsupported) { this.FailExchange($"「{product.Name}」不支持已使用检测"); return; }
-                if (use == ItemUseStatus.Used)
-                {
-                    this.AddDiagnostic(DiagnosticSeverity.Information, $"自动兑换：{product.Name} 已使用，跳过第 {this.exchangeRuleIndex + 1} 项");
-                    this.exchangeRuleIndex++; continue;
-                }
+                this.SkipExchangeRule(now, "商品或商人数据失效，请重新选择");
+                continue;
             }
-            int owned = this.inventoryCounter.Count(product.ItemId);
-            if ((rule.QuantityMode == GemstoneExchangeQuantityMode.BagTarget && owned >= rule.TargetQuantity)
-                || (product.Unique && owned > 0))
-            { this.exchangeRuleIndex++; continue; }
-            uint available = balance > plan.Reserve ? balance - (uint)plan.Reserve : 0;
-            if (available < product.Cost)
-            {
-                this.AddDiagnostic(DiagnosticSeverity.Information,
-                    $"自动兑换：跳过第 {this.exchangeRuleIndex + 1} 项「{product.Name}」，可用宝石不足一笔："
-                    + $"余额={balance}，保留={plan.Reserve}，可用={available}，单笔价格={product.Cost}");
-                this.exchangeRuleIndex++; continue;
-            }
+            string? skipReason = this.ExchangeRuleSkipReason(plan, rule, product, balance, out bool waiting);
+            if (waiting) { this.exchangeStatus = "等待角色收藏解锁状态"; return; }
+            if (skipReason is not null) { this.SkipExchangeRule(now, skipReason); continue; }
             var vendor = product.Vendors.First(v => v.NpcId == rule.NpcId && v.TerritoryId == rule.TerritoryId);
             bool reuse = this.exchangeShop.HasShop && this.exchangeVendor?.NpcId == vendor.NpcId
                 && this.exchangeVendor.TerritoryId == vendor.TerritoryId;
@@ -326,14 +348,40 @@ public sealed unsafe partial class FateAutomationController
         }
         if (this.exchangeShop.HasOwnership)
         { this.SetExchangePhase(ExchangePhase.Close, now); return; }
-        if (this.exchangeResumeFarm && plan.Enabled && balance >= plan.Threshold)
-        { this.FailExchange("没有可继续兑换的项目：已使用、目标已满足或宝石不足，请调整计划"); return; }
+        this.exchangeCompletedContext = this.ExchangeAttemptContext(plan, balance);
+        this.exchangeContextCheckAt = DateTime.MinValue;
         if (this.exchangeResumeFarm)
         {
             this.SetExchangePhase(ExchangePhase.Return, now);
             this.exchangeStatus = $"已兑换 {this.exchangeBought} 件，消耗 {this.exchangeSpent} 宝石，返回原刷图地图";
         }
         else this.CompleteExchange();
+    }
+
+    private string? ExchangeRuleSkipReason(GemstoneExchangeSettings plan, GemstoneExchangeRule rule,
+        GemstoneProduct product, uint balance, out bool waiting)
+    {
+        waiting = false;
+        if (this.exchangeUnavailableShops.Contains((rule.ShopId, rule.NpcId, rule.TerritoryId)))
+            return "本轮已确认该商店尚未解锁";
+        if (product.Cost == 0 || product.ReceiveCount == 0) return "商品价格或产出数据无效";
+        if (rule.SkipIfUsed)
+        {
+            ItemUseStatus use = this.GetExchangeItemUseStatus(product);
+            if (use == ItemUseStatus.WaitingForCharacter) { waiting = true; return null; }
+            if (use == ItemUseStatus.Unsupported) return "不支持已使用检测，请调整此项设置";
+            if (use == ItemUseStatus.Used) return "当前角色已使用";
+        }
+        int owned = this.inventoryCounter.Count(product.ItemId);
+        if (rule.QuantityMode == GemstoneExchangeQuantityMode.BagTarget && owned >= rule.TargetQuantity)
+            return $"背包数量已满足目标（背包={owned}，目标={rule.TargetQuantity}）";
+        if (product.Unique && owned > 0) return "背包已有该唯一物品";
+        uint available = balance > plan.Reserve ? balance - (uint)plan.Reserve : 0;
+        if (available < product.Cost)
+            return $"可用宝石不足一笔（余额={balance}，保留={plan.Reserve}，可用={available}，单笔价格={product.Cost}）";
+        if (this.inventoryCounter.PurchaseCapacity(product.ItemId, product.StackSize) < product.ReceiveCount)
+            return "背包没有空间容纳一笔兑换";
+        return null;
     }
 
     private bool ExchangeEnsureTerritory(DateTime now, uint destination, Vector3? targetPosition = null)
@@ -557,7 +605,13 @@ public sealed unsafe partial class FateAutomationController
         if (!this.exchangeShop.IsExpectedTarget) { this.FailExchange("兑换交互目标已改变"); return; }
         if (this.exchangeInteractionIssued)
         {
-            this.exchangeShop.AdvanceOpening(product, vendor.NpcId, out string? error);
+            this.exchangeShop.AdvanceOpening(product, vendor.NpcId, out string? error, out bool unavailable);
+            if (unavailable)
+            {
+                this.exchangeUnavailableShops.Add((product.ShopId, vendor.NpcId, vendor.TerritoryId));
+                this.SkipExchangeRule(now, error ?? "商店尚未解锁");
+                return;
+            }
             if (error is not null) { this.FailExchange(error); return; }
             if (this.exchangeShop.HasShop)
             { this.SetExchangePhase(ExchangePhase.Buy, now); return; }
@@ -580,22 +634,16 @@ public sealed unsafe partial class FateAutomationController
     {
         if (this.exchangePlan is not { } plan || this.exchangeProduct is not { } product) return;
         var rule = plan.Rules[this.exchangeRuleIndex];
-        if (rule.SkipIfUsed)
-        {
-            ItemUseStatus used = this.GetExchangeItemUseStatus(product);
-            if (used == ItemUseStatus.Used) { this.FinishExchangeRule(now); return; }
-            if (used != ItemUseStatus.NotUsed) { this.FailExchange("购买前无法读取道具已使用状态"); return; }
-        }
+        string? skipReason = this.ExchangeRuleSkipReason(plan, rule, product, balance, out bool waiting);
+        if (waiting) { this.exchangeStatus = "购买前等待角色收藏解锁状态"; return; }
+        if (skipReason is not null) { this.SkipExchangeRule(now, skipReason); return; }
         int owned = this.inventoryCounter.Count(product.ItemId);
-        if ((product.Unique && owned > 0) || (rule.QuantityMode == GemstoneExchangeQuantityMode.BagTarget && owned >= rule.TargetQuantity))
-        { this.FinishExchangeRule(now); return; }
         int affordable = balance > plan.Reserve ? (int)((balance - plan.Reserve) / product.Cost) : 0;
         int desired = rule.QuantityMode == GemstoneExchangeQuantityMode.SpendRemaining ? affordable
             : (int)(((long)rule.TargetQuantity - owned + product.ReceiveCount - 1) / product.ReceiveCount);
         int capacity = this.inventoryCounter.PurchaseCapacity(product.ItemId, product.StackSize) / (int)product.ReceiveCount;
         int batch = Math.Min(99, Math.Min(desired, Math.Min(affordable, capacity)));
         if (product.Unique) batch = Math.Min(1, batch);
-        if (capacity == 0) { this.FailExchange($"背包没有空间容纳「{product.Name}」"); return; }
         if (batch <= 0)
         {
             this.AddDiagnostic(DiagnosticSeverity.Information,
@@ -607,14 +655,26 @@ public sealed unsafe partial class FateAutomationController
         this.exchangeBatch = batch;
         this.exchangeOwnedBefore = owned;
         this.exchangeBalanceBefore = balance;
+        DateTime buyStartedAt = this.exchangePhaseStartedAt;
         this.SetExchangePhase(ExchangePhase.AwaitPurchase, now);
-        if (this.exchangeShop.Submit(product, batch, out _, out string? error))
+        if (this.exchangeShop.Submit(product, batch, out _, out string? error, out ExchangeShopIssue issue))
         {
             this.exchangeStatus = $"正在兑换 {product.Name} × {batch * product.ReceiveCount}，等待确认与到账";
         }
         else
         {
             this.exchangeBatch = 0;
+            if (issue == ExchangeShopIssue.Unavailable)
+            { this.SkipExchangeRule(now, error ?? "商品尚未解锁"); return; }
+            if (issue == ExchangeShopIssue.NotReady)
+            {
+                // Keep the original step deadline while waiting; do not turn transient
+                // addon setup into an unavailable item or reset its timeout every tick.
+                this.exchangePhase = ExchangePhase.Buy;
+                this.exchangePhaseStartedAt = buyStartedAt;
+                this.exchangeStatus = error ?? "等待商店商品数据";
+                return;
+            }
             this.SetExchangePhase(ExchangePhase.Buy, now);
             if (error is not null) this.FailExchange(error);
         }
@@ -648,6 +708,16 @@ public sealed unsafe partial class FateAutomationController
         this.exchangeRuleIndex++;
         this.SetExchangePhase(ExchangePhase.Choose, now);
         this.exchangeStatus = "当前兑换项已完成，按顺序检查下一项";
+    }
+
+    private void SkipExchangeRule(DateTime now, string reason)
+    {
+        var rule = this.exchangePlan!.Rules[this.exchangeRuleIndex];
+        string name = this.exchangeCatalog.Find(rule)?.Name ?? $"物品 {rule.ItemId}";
+        string message = $"自动兑换：跳过第 {this.exchangeRuleIndex + 1} 项「{name}」：{reason}；继续检查下一项";
+        this.AddDiagnostic(DiagnosticSeverity.Information, message);
+        this.FinishExchangeRule(now);
+        this.exchangeStatus = message;
     }
 
     private void FailExchange(string reason)

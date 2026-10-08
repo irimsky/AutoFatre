@@ -8,6 +8,8 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace AutoFatre;
 
+public enum ExchangeShopIssue { None, NotReady, Unavailable, InvalidData }
+
 /// <summary>Framework-thread only. Keeps addon IDs, never retains native addon pointers across ticks.</summary>
 public sealed unsafe class ShopExchangeAdapter : IDisposable
 {
@@ -91,9 +93,10 @@ public sealed unsafe class ShopExchangeAdapter : IDisposable
         return true;
     }
 
-    public bool AdvanceOpening(GemstoneProduct product, uint targetNpc, out string? error)
+    public bool AdvanceOpening(GemstoneProduct product, uint targetNpc, out string? error, out bool unavailable)
     {
         error = null;
+        unavailable = false;
         if (!this.IsExpectedTarget) { error = "兑换交互目标已改变，停止对话"; return false; }
         if (this.Observe("ShopExchangeCurrency", targetNpc)) return true;
         foreach (string name in new[] { "SelectString", "SelectIconString" })
@@ -113,6 +116,7 @@ public sealed unsafe class ShopExchangeAdapter : IDisposable
             }
             if (matches.Count != 1)
             {
+                unavailable = matches.Count == 0;
                 error = "无法唯一识别双色宝石商店选项，请检查商人和商店解锁状态";
                 return false;
             }
@@ -146,16 +150,17 @@ public sealed unsafe class ShopExchangeAdapter : IDisposable
         return $"agentAddon={agent->AddonId},shopName={name},selected={agent->SelectedItemIndex}/{agent->SelectedItemStackSize},items=[{string.Join(',', items)}]";
     }
 
-    public bool TryGetRow(GemstoneProduct product, out int row, out uint liveCost, out string? error)
+    private bool TryGetRow(GemstoneProduct product, out int row, out uint liveCost, out string? error, out ExchangeShopIssue issue)
     {
         row = -1;
         liveCost = 0;
         error = null;
+        issue = ExchangeShopIssue.InvalidData;
         AtkUnitBase* shop = this.GetOwned("ShopExchangeCurrency");
         if (!this.IsExpectedTarget || shop == null) { error = "所属商店已关闭或交互目标改变"; return false; }
         AgentShop* agent = AgentShop.Instance();
         if (agent == null || agent->ItemReceive == null || agent->ItemReceiveCount is < 1 or > 180)
-        { error = "商店商品数据尚未就绪"; return false; }
+        { issue = ExchangeShopIssue.NotReady; error = "商店商品数据尚未就绪"; return false; }
         if (agent->AddonId != shop->Id)
         { error = $"商店实例与 AgentShop 不一致（addon={shop->Id}, agent={agent->AddonId}）"; return false; }
 
@@ -165,6 +170,8 @@ public sealed unsafe class ShopExchangeAdapter : IDisposable
                 shop->Id, this.npcId, this.currencyIcon, actualIcon, product.ItemId, product.Name, product.ShopId, DescribeAgentShop(agent));
 
         int count = (int)Math.Min(60, UInt(shop, 4));
+        if (count == 0)
+        { issue = ExchangeShopIssue.NotReady; error = "商店商品界面尚未就绪"; return false; }
         int atkDisplay = -1;
         for (int i = 0; i < count; i++)
             if (UInt(shop, 1064 + i) == product.ItemId) { atkDisplay = i; break; }
@@ -172,8 +179,10 @@ public sealed unsafe class ShopExchangeAdapter : IDisposable
         int agentRow = -1;
         for (int i = 0; i < agent->ItemReceiveCount; i++)
             if (agent->ItemReceive[i].ItemId == product.ItemId) { agentRow = i; break; }
+        if (atkDisplay < 0 && agentRow < 0)
+        { issue = ExchangeShopIssue.Unavailable; error = $"商店中没有可兑换的「{product.Name}」，可能尚未解锁；{DescribeAgentShop(agent)}"; return false; }
         if (atkDisplay < 0 || agentRow < 0)
-        { error = $"商店中没有可兑换的「{product.Name}」，可能尚未解锁；{DescribeAgentShop(agent)}"; return false; }
+        { error = $"商店界面与 AgentShop 商品行不一致；{DescribeAgentShop(agent)}"; return false; }
         if (agent->ItemReceive[agentRow].ItemId != product.ItemId)
         { error = "实时商品列表无法定位该物品"; return false; }
         if (agent->ItemReceive[agentRow].ItemCount != product.ReceiveCount)
@@ -190,15 +199,16 @@ public sealed unsafe class ShopExchangeAdapter : IDisposable
             this.log.Debug("自动兑换商品行已按实时 AgentShop 重映射：商品={Item}/{Name}, atkRow={AtkRow}, agentRow={AgentRow}",
                 product.ItemId, product.Name, atkDisplay, agentRow);
         row = agentRow;
+        issue = ExchangeShopIssue.None;
         return true;
     }
 
-    public bool Submit(GemstoneProduct product, int exchanges, out uint liveCost, out string? error)
+    public bool Submit(GemstoneProduct product, int exchanges, out uint liveCost, out string? error, out ExchangeShopIssue issue)
     {
         liveCost = 0;
-        if (!this.TryGetRow(product, out int row, out liveCost, out error)) return false;
+        if (!this.TryGetRow(product, out int row, out liveCost, out error, out issue)) return false;
         if (this.Get("SelectYesno") != null || this.Get("ShopExchangeCurrencyDialog") != null)
-        { error = "存在未结束的确认窗口，暂停新购买"; return false; }
+        { issue = ExchangeShopIssue.InvalidData; error = "存在未结束的确认窗口，暂停新购买"; return false; }
         AtkValue* values = stackalloc AtkValue[4];
         values[0] = new() { Type = AtkValueType.Int, Int = 0 };
         values[1] = new() { Type = AtkValueType.Int, Int = row };

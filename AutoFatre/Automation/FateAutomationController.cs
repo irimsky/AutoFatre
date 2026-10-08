@@ -614,6 +614,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void StartCore()
     {
+        this.exchangeCompletedContext = null;
         this.fateAlertTracking.Reset();
         this.pendingSoundAlerts.Clear();
         this.soundAlertCooldowns.Clear();
