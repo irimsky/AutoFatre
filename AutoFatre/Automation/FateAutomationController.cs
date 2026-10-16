@@ -127,6 +127,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     private readonly IDataManager dataManager;
     private readonly IGameGui gameGui;
     private readonly VnavmeshIpc vnavmesh;
+    private readonly FateLandingPlanner fateLandingPlanner;
     private readonly LifestreamIpc lifestream;
     private readonly FateRepository fates;
     private readonly StaticFateCatalog staticFateCatalog;
@@ -146,6 +147,11 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     private readonly DeathRecoveryAdapter deathRecovery;
     private readonly IReadOnlyDictionary<ushort, ClientFateDefinition> clientFateDefinitions;
     private readonly NavigationTravelSession travelSession;
+    private readonly TravelJourney fateJourney;
+    private bool fateJourneyActive;
+    private bool fateJourneyLocal;
+    private bool fateFlightWaypointPassed;
+    private long fateTravelStarted;
     private readonly NoFlyZoneCatalog noFlyZones;
     private readonly FateRewardListener fateRewards;
     private readonly FateCompletionTracking fateCompletions = new();
@@ -371,6 +377,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.exchangeShop = new ShopExchangeAdapter(gameGui, targetManager, addonLifecycle, log,
             dataManager.GetExcelSheet<Lumina.Excel.Sheets.Item>().GetRow(GemstoneExchangeCatalog.CurrencyItemId).Icon);
         this.vnavmesh = vnavmesh;
+        this.fateLandingPlanner = new FateLandingPlanner(vnavmesh);
         this.exchangeNavigationStatus = vnavmeshStatus;
         this.lifestream = lifestream;
         this.fates = fates;
@@ -385,12 +392,15 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.mount = mount;
         this.landing = landing;
         this.travelSession = new NavigationTravelSession(vnavmesh, landing, mount);
+        this.fateJourney = new(vnavmesh, landing, new TravelMovementControl(mount, new TakeoffAdapter(condition, objectTable)));
         this.noFlyZones = new NoFlyZoneCatalog(dataManager);
         this.dutyAggroReset = dutyAggroReset;
         this.soundAlerts = soundAlerts;
         this.textAdvance = textAdvance;
         this.levelSync = new LevelSyncAdapter(addonLifecycle, message => this.AddDiagnostic(DiagnosticSeverity.Debug, message));
         this.deathRecovery = new DeathRecoveryAdapter(gameGui);
+        this.autoRepair = new AutoRepairAdapter(gameGui, dataManager, objectTable, targetManager, addonLifecycle,
+            message => this.AddDiagnostic(DiagnosticSeverity.Debug, message));
         this.clientFateDefinitions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Fate>()
             .Where(row => row.RowId is > 0 and <= ushort.MaxValue)
             .ToDictionary(
@@ -542,6 +552,9 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     private void BeginTemporaryTargetFate(ushort fateId, int requiredCount, string reason, bool updateSingleFateResult,
         bool allowExchangeForExternalFarm = false)
     {
+        // Recheck queued IPC starts on the Framework thread, before assigning permission.
+        if (this.disposed || this.framework.IsFrameworkUnloading
+            || (updateSingleFateResult && (this.state != AutomationState.Stopped || this.temporaryTargetActive))) return;
         if (this.IsExchanging || this.exchangeRequested) return;
         if (this.itemFarmMaps is not null) return;
         FateSnapshot? fate = this.fates.Find(fateId);
@@ -573,6 +586,9 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             this.temporaryPreviousTargetFateIds = this.configuration.TargetFateIds.ToList();
             this.temporaryPreviousEnabled = this.configuration.Enabled;
             this.allowExchangeForExternalFarm = allowExchangeForExternalFarm;
+            if (updateSingleFateResult)
+                this.AddDiagnostic(DiagnosticSeverity.Information,
+                    $"IPC 单 FATE 启动：自动兑换={allowExchangeForExternalFarm}（仅使用 IPC 参数）");
         }
 
         this.CancelOwnedActions();
@@ -594,7 +610,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         if (fate is not null)
             this.SelectFate(fate, reason);
         else
-            this.Start();
+            this.StartCore();
         if (wasInCombat)
         {
             this.preemptSyncFateId = previousFateId;
@@ -608,12 +624,14 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     public void Start()
     {
         if (this.IsExchanging || this.exchangeRequested) this.Stop("用户重新启动自动化，取消当前兑换");
-        if (this.itemFarmMaps is not null) this.Stop("用户重新启动自动化");
+        if (this.itemFarmMaps is not null || this.temporaryTargetActive) this.Stop("用户重新启动自动化");
         this.StartCore();
     }
 
     private void StartCore()
     {
+        // A new user/IPC run must recheck gear immediately, even after a previous run failed repair.
+        this.repairRetryAt = DateTime.MinValue;
         this.exchangeCompletedContext = null;
         this.fateAlertTracking.Reset();
         this.pendingSoundAlerts.Clear();
@@ -647,8 +665,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.mapArrivalCheckPending = false;
         this.preparingGroundArrivalPending = false;
         this.ResetFailedTeleportCandidates();
-        this.startupGroundCheckPending = this.objectTable.LocalPlayer is not null
-            && TravelSafetyRules.CanCheckAtStartup(this.mount.IsInFlight, this.mount.IsJumping, this.mount.IsMountTransition);
+        this.startupGroundCheckPending = true;
         this.startupFateRangeSelectionPending = true;
         this.Transition(AutomationState.WaitingForLogin, "自动化已启动；按当前位置规划赶路与检查时机");
     }
@@ -698,6 +715,9 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     public void Retry()
     {
         if (this.ResumeExchange()) return;
+        this.companionRepairHandled = false;
+        this.repairRetryAt = DateTime.MinValue;
+        if (this.configuration.AutoRepair.Enabled) this.startupGroundCheckPending = true;
         if (!this.configuration.Enabled)
             this.configuration.Enabled = true;
         if (!this.fateCompletions.Tracking)
@@ -705,6 +725,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
         this.recoveryAttempts = 0;
         this.landingRecoveryAttempts = 0;
+        this.fateLandingPlanner.Reset();
         this.landingRecoveryDestination = null;
         this.mapReentryTerritory = null;
         this.mapReentryTeleportRequired = false;
@@ -1062,6 +1083,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.clientState.TerritoryChanged -= this.OnTerritoryChanged;
         this.CancelOwnedActions();
         this.exchangeShop.Dispose();
+        this.autoRepair.Dispose();
         this.dutyAggroReset.Dispose();
         this.levelSync.Dispose();
         this.travelSession.Dispose();
@@ -1109,7 +1131,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             // clear the duty phase here: the next update must continue the exit sequence.
             this.StopNavigationOperation();
             this.landing.StopDescending();
-            this.exchangeLandingSession?.Reset();
+            if (this.fateJourneyActive) this.EndTravelSession();
             this.Transition(AutomationState.ResettingAggroViaDuty, "伊弗利特副本进退区域切换中，保持退出流程");
             return;
         }
@@ -1134,10 +1156,12 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void OnTerritoryChanged(uint territory)
     {
+        this.fateLandingPlanner.Reset();
         if (this.IsExchanging)
         {
             this.noFateStopTimer.Reset();
             this.StopNavigationOperation();
+            this.fateFlightWaypointPassed = false;
             this.landing.StopDescending();
             this.territoryStableAfter = DateTime.UtcNow.AddSeconds(2);
             this.entryPetSummonedTerritory = null;
@@ -1169,6 +1193,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         bool navigationRecoveryInProgress = this.state == AutomationState.RecoveringNavigation;
         bool fateAetheryteTeleportInProgress = this.fateAetheryteTeleportPlan is not null;
         this.StopNavigationOperation();
+        this.fateFlightWaypointPassed = false;
         this.landing.StopDescending();
         this.combatTargets.ResetFateTargets();
         this.priorityDestroyTargetId = null;
@@ -1227,8 +1252,11 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             return;
 
         DateTime now = DateTime.UtcNow;
-        // Path.Stop cannot cancel a pending SimpleMove calculation. Drain late results even
-        // after ending the travel session, while paused, or during an action throttle.
+        if (this.autoRepair.IsActive && (!this.configuration.Enabled || this.state != AutomationState.CheckingCompanions
+            || !this.clientState.IsLoggedIn || !this.playerState.IsLoaded || this.objectTable.LocalPlayer is null
+            || this.IsBetweenAreas() || this.condition[ConditionFlag.Unconscious] || this.condition[ConditionFlag.InCombat]))
+            this.autoRepair.Cancel();
+        // Observe cancelled calculations even when the business state no longer ticks travel.
         this.travelSession.PumpCancellation();
         if (this.HandleExchangeExclusive(now)) return;
         this.ObserveCombatApproachCast(now);
@@ -1249,6 +1277,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         bool dutyResetOperation = manualDutyOperation || this.state == AutomationState.ResettingAggroViaDuty;
         if (!this.clientState.IsLoggedIn || !this.playerState.IsLoaded || this.objectTable.LocalPlayer is null)
         {
+            this.StopNavigationOperation();
+            this.landing.StopDescending();
             if (dutyResetOperation)
             {
                 this.statusReason = "伊弗利特副本进退等待区域角色数据恢复，不切换到普通自动化流程";
@@ -1439,7 +1469,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             // Exchange must be considered before preset stop conditions. Otherwise a completed
             // FATE can advance the map/sequence and start the next FATE before the gemstone
             // threshold is checked by ScanAndSelectFate.
-            if (this.configuration.GemstoneExchange.Enabled
+            if ((this.exchangeRequested || this.AutomaticExchangeEnabled)
                 && now < this.exchangeSettlementUntil)
             {
                 this.statusReason = "等待本场 FATE 双色宝石结算后检查自动兑换";
@@ -1491,8 +1521,11 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             }
         }
 
-        this.TryPreemptForTargetFate();
-        this.TryPreemptTravelForHigherScore(now);
+        if (!this.autoRepair.IsActive)
+        {
+            this.TryPreemptForTargetFate();
+            this.TryPreemptTravelForHigherScore(now);
+        }
         if (now < this.nextActionAt)
             return;
 
@@ -1679,6 +1712,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.entryPetSummonedTerritory = null;
         this.entryPetRetryAt = DateTime.MinValue;
         this.companionChocoboHandled = !this.configuration.AutoSummonChocoboCompanion;
+        this.companionRepairHandled = kind == CompanionCheckpointKind.CombatPeriodic
+            || !this.configuration.AutoRepair.Enabled || DateTime.UtcNow < this.repairRetryAt;
         // The periodic combat checkpoint only refreshes companion state. Gear changes are
         // reserved for the safe map/FATE arrival checkpoints and must never be attempted in
         // the middle of combat.
@@ -1710,6 +1745,23 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         {
             this.statusReason = "伙伴检查等待区域和角色状态稳定";
             this.nextActionAt = now.AddMilliseconds(250);
+            return;
+        }
+
+        // Check immutable game data before requesting any landing or dismount action.
+        // An already active companion need not be visible as an actor while mounted.
+        this.RefreshSatisfiedCompanionRequirements();
+        if (this.companionEntryPetHandled && this.entryWeaponHandled && this.companionChocoboHandled && this.companionRepairHandled
+            && !this.companionChocoboActionPending
+            && (!this.condition[ConditionFlag.InCombat] || this.companionCheckpointKind == CompanionCheckpointKind.CombatPeriodic)
+            && !(this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87]
+                || this.objectTable.LocalPlayer?.IsCasting == true)
+            && (this.companionCheckpointKind != CompanionCheckpointKind.FateArrival
+                || this.mount.IsDismounted && !this.mount.IsInFlight && !this.mount.IsJumping && !this.mount.IsMountTransition))
+        {
+            string repairNote = !this.configuration.AutoRepair.Enabled ? "自动修理未启用"
+                : now < this.repairRetryAt ? "修理失败冷却中，暂时跳过" : "装备耐久检查已满足";
+            this.CompleteCompanionCheckpoint($"宠物、指定武器与陆行鸟状态已满足；{repairNote}，继续");
             return;
         }
 
@@ -1808,6 +1860,9 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             }
         }
 
+        if (this.HandleCompanionRepair(now))
+            return;
+
         if (!this.companionChocoboHandled)
         {
             bool needed = this.companion.NeedsChocobo;
@@ -1841,6 +1896,39 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             this.companionChocoboActionPending = false;
         }
 
+        this.CompleteCompanionCheckpoint("完成，继续主流程");
+    }
+
+    private void RefreshSatisfiedCompanionRequirements()
+    {
+        uint petId = this.GetCurrentPresetEntryPetId();
+        this.companionEntryPetHandled |= petId == 0 || this.companion.IsMinionItemActive(petId);
+        uint weaponId = this.GetCurrentPresetEntryWeaponId();
+        this.entryWeaponHandled |= weaponId == 0 || this.companion.IsItemEquipped(weaponId);
+        this.companionChocoboHandled |= !this.configuration.AutoSummonChocoboCompanion || !this.companion.NeedsChocobo;
+        if (this.entryWeaponHandled && !this.autoRepair.IsActive)
+            this.companionRepairHandled |= this.RepairRequirementSatisfied();
+    }
+
+    private bool CompanionRequirementsSatisfied()
+    {
+        uint petId = this.GetCurrentPresetEntryPetId();
+        uint weaponId = this.GetCurrentPresetEntryWeaponId();
+        return (petId == 0 || this.companion.IsMinionItemActive(petId))
+            && (weaponId == 0 || this.companion.IsItemEquipped(weaponId))
+            && (!this.configuration.AutoSummonChocoboCompanion || !this.companion.NeedsChocobo)
+            && this.RepairRequirementSatisfied();
+    }
+
+    private uint GetCurrentPresetEntryPetId()
+    {
+        if (this.EffectiveMode != AutomationMode.PresetSequence) return 0;
+        IReadOnlyList<MapPreset> maps = this.GetPresetMaps();
+        return maps.Count == 0 ? 0 : maps[Math.Clamp(this.presetIndex, 0, maps.Count - 1)].EntryPetItemId;
+    }
+
+    private void CompleteCompanionCheckpoint(string reason)
+    {
         AutomationState next = this.companionResumeState;
         if (this.companionCheckpointKind == CompanionCheckpointKind.FateArrival
             && this.ResolveActiveFate() is { } fate)
@@ -1854,7 +1942,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
         CompanionCheckpointKind completedKind = this.companionCheckpointKind;
         this.ResetCompanionCheckpoint();
-        this.Transition(next, $"伙伴检查点 {completedKind} 完成，继续主流程");
+        this.Transition(next, $"伙伴检查点 {completedKind} {reason}");
+        this.nextActionAt = DateTime.MinValue;
     }
 
     private bool HandleChocoboCompanionCheckpoint(DateTime now)
@@ -1894,6 +1983,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void ResetCompanionCheckpoint()
     {
+        this.autoRepair.Cancel();
+        this.companionRepairHandled = false;
         this.companionResumeState = AutomationState.ScanningFates;
         this.companionCheckpointStartedAt = DateTime.MinValue;
         this.companionEntryPetHandled = false;
@@ -1983,10 +2074,15 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         if (this.startupGroundCheckPending)
         {
             this.startupGroundCheckPending = false;
-            if (TravelSafetyRules.CanCheckAtStartup(this.mount.IsInFlight, this.mount.IsJumping, this.mount.IsMountTransition))
+            if (this.CompanionRequirementsSatisfied())
+            {
+                this.AddDiagnostic(DiagnosticSeverity.Information,
+                    $"启动时宠物、指定武器与陆行鸟状态已满足；{(this.configuration.AutoRepair.Enabled ? "装备耐久检查已满足" : "自动修理未启用")}，保持当前骑乘/飞行状态继续规划");
+            }
+            else if (TravelSafetyRules.CanCheckAtStartup(this.mount.IsInFlight, this.mount.IsJumping, this.mount.IsMountTransition))
             {
                 this.BeginCompanionCheckpoint(CompanionCheckpointKind.StartupGround,
-                    AutomationState.ValidatingPlan, "启动时角色在地面，检查宠物、指定武器与陆行鸟伙伴后继续规划");
+                    AutomationState.ValidatingPlan, "启动时角色在地面，检查宠物、指定武器、装备耐久与陆行鸟伙伴后继续规划");
                 return;
             }
         }
@@ -2563,7 +2659,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             return;
         }
 
-        if (now < this.exchangeSettlementUntil && (this.exchangeRequested || this.configuration.GemstoneExchange.Enabled))
+        if (now < this.exchangeSettlementUntil && (this.exchangeRequested || this.AutomaticExchangeEnabled))
         {
             this.statusReason = "等待本场 FATE 宝石奖励结算后检查兑换计划";
             this.nextActionAt = this.exchangeSettlementUntil;
@@ -2754,7 +2850,10 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void SelectFate(FateSnapshot fate, string reason)
     {
+        this.fateTravelStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        this.fateLandingPlanner.Reset();
         this.StopNavigationOperation();
+        this.fateFlightWaypointPassed = false;
         this.landingRecoveryAttempts = 0;
         this.landingRecoveryDestination = null;
         this.mapReentryTerritory = null;
@@ -3307,240 +3406,182 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void HandleMountForTravel(DateTime now)
     {
-        FateSnapshot? fate = this.ResolveActiveFate();
-        if (fate is null)
-        {
-            this.AbandonActiveFate("上坐骑前目标 FATE 已失效");
-            return;
-        }
+        if (this.ResolveActiveFate() is null) { this.AbandonActiveFate("前往 FATE 前目标已失效"); return; }
+        if (this.condition[ConditionFlag.InCombat]) { this.BeginCombatCleanup(CleanupContinuation.ResumeTravel, "前往 FATE 前发现残余战斗"); return; }
+        this.Transition(AutomationState.NavigatingToFate, "由 FieldNavigation 选择移动方式并准备出发");
+    }
 
-        if (!this.ShouldFlyToActiveFate)
-        {
-            this.Transition(AutomationState.NavigatingToFate, "当前使用地面导航，无需强制上坐骑");
-            return;
-        }
+    private TravelObservation ObserveFateTravel(DateTime now, Vector3? destination = null)
+    {
+        var position = this.objectTable.LocalPlayer!.Position;
+        var zone = this.GetCurrentNoFlyZone();
+        var native = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState.Instance();
+        return new(now, position, new(this.mount.IsInFlight, this.mount.IsJumping, this.mount.IsMountTransition),
+            this.mount.IsReadyForNavigation, this.mount.IsDismounted,
+            native != null && native->CanFly, zone is not null, zone?.LandingPoint,
+            Character: this.playerState.ContentId, Territory: this.clientState.TerritoryType,
+            NoFlyExempt: destination is { } target
+                && this.noFlyZones.IsRouteExempt(this.clientState.TerritoryType, position, target),
+            TargetPosition: destination);
+    }
 
-        if (this.condition[ConditionFlag.InCombat])
+    private void NavigateOrdinaryFate(DateTime now, FateSnapshot fate)
+    {
+        if (this.objectTable.LocalPlayer is not { } player) return;
+        var remaining = TimeSpan.FromMinutes(6) - System.Diagnostics.Stopwatch.GetElapsedTime(this.fateTravelStarted);
+        if (remaining <= TimeSpan.Zero)
+        { this.StopNavigationOperation(); this.FailRecoverableAction("本次 FATE 前往总预算已耗尽", this.IsRequiredFate(fate.FateId)); return; }
+        Vector3? requiredExitWaypoint = this.ShouldFlyToActiveFate && !this.fateFlightWaypointPassed
+            ? this.noFlyZones.FindFlightExitWaypoint(this.clientState.TerritoryType, player.Position, fate.Position)
+            : null;
+        // Complete the exit leg before switching to local landing search, even if the
+        // original goal happens to be close or is passed on the way to the checkpoint.
+        bool exiting = this.fateJourneyActive ? this.fateJourney.IntermediateWaypointPending : requiredExitWaypoint is not null;
+        bool local = !exiting && (this.fateLandingPlanner.IsActive
+            || HorizontalDistance(player.Position, fate.Position) <= Math.Max(80f, fate.Radius + 30f));
+        if (local && this.fateJourneyActive && !this.fateJourneyLocal) this.EndTravelSession();
+        var observation = this.ObserveFateTravel(now);
+        TravelModePolicy movement = new() { Preferred = this.ShouldFlyToActiveFate ? TravelMovementMode.Automatic : TravelMovementMode.Foot };
+        Vector3 target = fate.Position;
+        if (local)
         {
-            this.BeginCombatCleanup(CleanupContinuation.ResumeTravel, "上坐骑前发现残余战斗");
-            return;
+            // Use the same movement policy as the journey, and classify each candidate's
+            // own route: a nearby floor may lie on the other side of a no-fly boundary.
+            var floor = this.fateLandingPlanner.Update(now, fate, player.Position,
+                candidate => movement.Select(observation.Position, candidate, observation.CanFly) == TravelMovementMode.Fly
+                    && (!observation.InsideNoFly || this.noFlyZones.IsRouteExempt(
+                        this.clientState.TerritoryType, observation.Position, candidate)),
+                this.targetSelector.FindAllTargets(fate.FateId, player.Position).Select(x => x.Position));
+            if (floor is null)
+            {
+                this.statusReason = this.fateLandingPlanner.Status;
+                if (this.fateLandingPlanner.Exhausted)
+                {
+                    this.RecordFateFailure(fate, "落点不可达", this.statusReason);
+                    if (this.IsRequiredFate(fate.FateId)) this.Pause($"指定 FATE 未找到可抵达落点：{this.statusReason}");
+                    else this.AbandonActiveFate("FATE 落点候选耗尽，暂时跳过");
+                }
+                this.nextActionAt = now.AddMilliseconds(100); return;
+            }
+            target = floor.Value;
         }
-
-        if (this.mount.IsReadyForNavigation)
+        // Evaluate route exemptions from the original position to the selected target once;
+        // TravelJourney retains this result while the character crosses the zone boundary.
+        observation = this.ObserveFateTravel(now, target);
+        Vector3? flightExitWaypoint = this.ShouldFlyToActiveFate && !this.fateFlightWaypointPassed
+            ? this.noFlyZones.FindFlightExitWaypoint(this.clientState.TerritoryType, observation.Position, target)
+            : null;
+        if (!this.fateJourneyActive)
         {
-            this.ResetNavigationProgress();
-            this.Transition(AutomationState.NavigatingToFate, "已上坐骑，开始飞行导航");
-            return;
+            this.EndTravelSession();
+            this.fateJourney.Start(new()
+            {
+                Destination = target,
+                IntermediateWaypoint = flightExitWaypoint,
+                IntermediateWaypointIsMapCoordinate = true,
+                Movement = movement,
+                Arrival = new() { Radius = local ? 4 : Math.Max(80f, fate.Radius + 30f),
+                    HeightTolerance = local ? 2 : float.PositiveInfinity, Use3DDistance = local,
+                    RequireGrounded = local, RequireDismounted = local,
+                    SettleDuration = local ? TimeSpan.FromMilliseconds(750) : TimeSpan.Zero },
+                LandingPoint = local ? target : null, LandingRadius = 3,
+                StallTimeout = TimeSpan.FromSeconds(this.configuration.NavigationStuckSeconds),
+                OperationTimeout = remaining, StopOnStall = local,
+            }, observation);
+            this.fateJourneyActive = true; this.fateJourneyLocal = local;
         }
-
-        if (now - this.stateEnteredAt >= TimeSpan.FromSeconds(12))
+        var update = this.fateJourney.Tick(observation);
+        this.LogJourneySnapshot(now, observation, update);
+        this.statusReason = update.Reason;
+        this.nextActionAt = now.AddMilliseconds(100);
+        if (update.Outcome == NavigationTravelOutcome.Failed)
         {
-            this.FailRecoverableAction("12 秒内未能成功上坐骑", this.IsRequiredFate(fate.FateId));
-            return;
+            this.EndTravelSession();
+            if (local) this.fateLandingPlanner.RejectDestination(now);
+            else this.BeginNavigationRecovery(now, fate, update.Reason);
         }
-
-        if (this.mount.IsMountTransition)
+        else if (update.Outcome == NavigationTravelOutcome.Arrived)
         {
-            this.statusReason = "等待上坐骑动作完成";
-            this.nextActionAt = now.AddMilliseconds(100);
-            return;
+            this.EndTravelSession();
+            if (local)
+            {
+                this.fallbackLandingForParticipation = true;
+                this.Transition(AutomationState.DismountingForFate, "FN 已确认实际抵达、落地及下坐骑，核验 FATE 业务范围");
+            }
         }
-
-        if (now < this.mount.NextMountRequestAt)
-        {
-            this.statusReason = "等待上坐骑请求结果";
-            this.nextActionAt = this.mount.NextMountRequestAt;
-            return;
-        }
-
-        if (!this.mount.CanAttemptMount)
-        {
-            this.statusReason = $"暂时无法上坐骑：{this.mount.MountBlockReason}";
-            this.nextActionAt = now.AddMilliseconds(500);
-            return;
-        }
-
-        // Aetherytes and former enemies can remain hard-targeted after teleport/combat; the client
-        // rejects Mount Roulette with "Invalid target" until that target is cleared.
-        this.ClearTarget();
-        bool sent = this.mount.TryMount();
-        this.statusReason = sent ? "已请求坐骑轮盘，等待上坐骑" : "坐骑轮盘请求未被客户端接受，准备重试";
-        this.AddDiagnostic(sent ? DiagnosticSeverity.Information : DiagnosticSeverity.Debug, this.statusReason);
-        this.nextActionAt = now.AddMilliseconds(750);
     }
 
     private void NavigateToActiveFate(DateTime now)
     {
-        FateSnapshot? fate = this.ResolveActiveFate();
-        if (fate is null)
-        {
-            this.AbandonActiveFate("目标 FATE 已消失或不再有效");
-            return;
-        }
-
+        var fate = this.ResolveActiveFate();
+        if (fate is null) { this.AbandonActiveFate("目标 FATE 已消失或不再有效"); return; }
         if (!this.vnavmesh.IsAvailable)
         {
-            this.Transition(AutomationState.WaitingForDependency, "等待 vnavmesh 可用", DiagnosticSeverity.Warning);
-            this.nextActionAt = now.AddSeconds(2);
-            return;
+            this.StopNavigationOperation(); this.Transition(AutomationState.WaitingForDependency, "等待 vnavmesh 可用", DiagnosticSeverity.Warning);
+            this.nextActionAt = now.AddSeconds(2); return;
         }
-
         bool preparing = IsPreparingFate(fate);
-        IGameObject? preparingOpener = preparing
-            ? this.targetSelector.FindPreparingOpener(
-                fate.FateId,
-                fate.Position,
-                fate.Radius,
-                fate.ObjectiveNpc,
-                fate.MotivationNpc,
-                fate.MapMarkerPositions)
-            : null;
-        Vector3 destination = preparing
-            ? preparingOpener?.Position ?? GetPreparingFateWaypoint(fate)
-            : fate.Position;
-        if (this.preparingGroundArrivalPending)
-            destination = fate.Position;
-
-        NoFlyZone? noFlyZone = this.GetCurrentNoFlyZone();
-        bool wantsFlight = this.ShouldFlyToActiveFate && !this.preparingGroundArrivalPending;
-        if (wantsFlight
-            && noFlyZone is null
-            && !this.mount.IsMounted
-            && !this.mount.IsInFlight
-            && !this.mount.IsMountTransition)
-        {
-            this.StopNavigationOperation();
-            this.Transition(AutomationState.MountingForTravel, "飞行导航前坐骑状态丢失，重新上坐骑", DiagnosticSeverity.Warning);
-            return;
-        }
-
+        if (!preparing && !this.preparingGroundArrivalPending && !this.navigationOnlyRequested)
+        { this.NavigateOrdinaryFate(now, fate); return; }
+        if (this.objectTable.LocalPlayer is not { } player) return;
         if (preparing && now - this.preparationStartedAt > FatePreparationTimeout)
         {
-            this.FailRecoverableAction(
-                $"FATE #{fate.FateId} {FatePreparationTimeout.TotalSeconds:0} 秒内未能抵达并加载开启 NPC",
-                this.IsRequiredFate(fate.FateId));
-            return;
+            this.StopNavigationOperation();
+            this.FailRecoverableAction($"FATE #{fate.FateId} 未能及时加载开启 NPC", this.IsRequiredFate(fate.FateId)); return;
         }
-
-        float distance = this.DistanceToPlayer(destination);
-        float horizontalDistance = this.HorizontalDistanceToPlayer(destination);
-        float arrival = preparing && preparingOpener is not null
-            ? 3f
-            : Math.Max(3f, fate.Radius * 0.40f);
-        bool markerArrived = preparing
-            && preparingOpener is null
-            && horizontalDistance <= Math.Max(20f, fate.Radius * 1.5f);
-        bool inFate = !preparing && IsPlayerInFate(fate.FateId);
-        if (inFate && this.fateParticipationSince == DateTime.MinValue)
-            this.fateParticipationSince = now;
-        if (!inFate)
-            this.fateParticipationSince = DateTime.MinValue;
-        bool centerFallback = inFate
-            && horizontalDistance <= arrival
-            && this.fateParticipationSince != DateTime.MinValue
-            && now - this.fateParticipationSince >= UnreachableCenterFallbackDelay;
-        bool arrived = markerArrived
-            || distance <= arrival
-            || (centerFallback && wantsFlight);
-
-        if (!this.travelSessionActive)
-        {
-            this.StartTravelSession(
-                now,
-                NavigationPurpose.TravelToFate,
-                destination,
-                wantsFlight,
-                preparing && preparingOpener is null
-                    ? GroundDestinationKind.MapWaypoint
-                    : preparing ? GroundDestinationKind.LiveObject : GroundDestinationKind.MapWaypoint,
-                horizontalProgress: false,
-                context: preparing ? "前往 Preparing FATE" : "前往 FATE");
-        }
-
-        NavigationTravelUpdate update = this.TickTravelSession(now, destination, () => arrived);
-        if (update.Outcome == NavigationTravelOutcome.Failed)
-        {
-            this.HandleTravelSessionFailure(now, fate, destination, horizontal: false, update);
-            return;
-        }
-        if (update.RequestResult == NavigationRequestResult.Rejected)
+        var opener = preparing ? this.targetSelector.FindPreparingOpener(fate.FateId, fate.Position, fate.Radius,
+            fate.ObjectiveNpc, fate.MotivationNpc, fate.MapMarkerPositions) : null;
+        var target = this.preparingGroundArrivalPending ? fate.Position
+            : preparing ? opener?.Position ?? GetPreparingFateWaypoint(fate) : fate.Position;
+        bool marker = preparing && opener is null;
+        var observation = this.ObserveFateTravel(now, target);
+        Vector3? flightExitWaypoint = this.ShouldFlyToActiveFate && !this.preparingGroundArrivalPending && !this.fateFlightWaypointPassed
+            ? this.noFlyZones.FindFlightExitWaypoint(this.clientState.TerritoryType, observation.Position, target)
+            : null;
+        if (!this.fateJourneyActive)
         {
             this.EndTravelSession();
-            this.BeginNavigationRecovery(
-                now,
-                fate,
-                $"vnavmesh 拒绝导航请求：{update.Reason}");
-            return;
-        }
-        if (update.State is NavigationTravelState.Landing or NavigationTravelState.JumpRecovery)
-        {
-            this.nextActionAt = now.AddMilliseconds(150);
-            return;
-        }
-        if (update.Outcome is not NavigationTravelOutcome.Arrived)
-        {
-            this.statusReason = preparing
-                ? $"正在前往 Preparing FATE #{fate.FateId}（距目标 {distance:0.0}）"
-                : $"正在前往 FATE #{fate.FateId}（距目标 {distance:0.0}）";
-            this.nextActionAt = now.AddMilliseconds(100);
-            return;
-        }
-
-        this.EndTravelSession();
-        if (markerArrived)
-        {
-            if (this.navigationOnlyRequested)
+            this.fateJourney.Start(new()
             {
-                this.CompleteNavigationOnly("已到达准备 FATE 目标点附近");
-                return;
-            }
-            this.statusReason = $"已抵达准备中的 FATE #{fate.FateId} 开启标记附近，等待开启 NPC 加载";
-            this.nextActionAt = now.AddMilliseconds(500);
-            return;
+                Destination = target, FindApproachPoint = preparing && opener is not null,
+                IntermediateWaypoint = flightExitWaypoint,
+                IntermediateWaypointIsMapCoordinate = true,
+                Movement = new() { Preferred = this.ShouldFlyToActiveFate && !this.preparingGroundArrivalPending
+                    ? TravelMovementMode.Automatic : TravelMovementMode.Foot },
+                Arrival = new() { Radius = marker ? Math.Max(20f, fate.Radius * 1.5f) : 3,
+                    HeightTolerance = marker ? float.PositiveInfinity : 2, Use3DDistance = !marker,
+                    RequireGrounded = !this.navigationOnlyRequested, RequireDismounted = !this.navigationOnlyRequested },
+                GroundKind = marker ? GroundDestinationKind.MapWaypoint : GroundDestinationKind.Raw,
+                FlightHeight = this.navigationOnlyRequested ? 0 : 4,
+                OperationTimeout = preparing ? FatePreparationTimeout : TimeSpan.FromMinutes(6),
+                StallTimeout = TimeSpan.FromSeconds(this.configuration.NavigationStuckSeconds),
+            }, observation);
+            this.fateJourneyActive = true;
         }
-        if (this.navigationOnlyRequested)
-        {
-            this.CompleteNavigationOnly(centerFallback ? "已进入目标 FATE 区域" : "已到达目标点");
-            return;
-        }
-
-        if (wantsFlight && (this.mount.IsInFlight || this.mount.IsMounted))
-        {
-            this.BeginStableLanding(now, centerFallback ? "FATE 中心不可达，当前位置落地" : "FATE");
-            this.fallbackLandingForParticipation = centerFallback;
-            this.Transition(
-                AutomationState.LandingForFate,
-                centerFallback
-                    ? $"已进入 FATE 区域但中心点不可达，在当前位置下降（距中心 {distance:0.0}）"
-                    : $"已到达 FATE 导航目标，停止导航并垂直下降（距目标 {distance:0.0}）");
-            return;
-        }
-
+        var result = this.fateJourney.Tick(observation);
+        this.LogJourneySnapshot(now, observation, result);
+        this.statusReason = result.Reason; this.nextActionAt = now.AddMilliseconds(100);
+        if (result.Outcome == NavigationTravelOutcome.Failed)
+        { this.EndTravelSession(); this.BeginNavigationRecovery(now, fate, result.Reason); return; }
+        if (result.Outcome != NavigationTravelOutcome.Arrived) return;
+        this.EndTravelSession();
+        if (this.navigationOnlyRequested) { this.CompleteNavigationOnly("FN 已确认抵达目标范围"); return; }
+        if (marker)
+        { this.statusReason = $"已抵达准备 FATE #{fate.FateId} 标记附近，等待开启 NPC 加载"; this.nextActionAt = now.AddMilliseconds(500); return; }
         if (this.preparingGroundArrivalPending)
         {
-            if (!this.mount.IsDismounted)
-            {
-                this.Transition(
-                    AutomationState.DismountingForFate,
-                    $"交互 FATE 已地面导航回到中心，但角色仍在坐骑上（距中心 {distance:0.0}），先下坐骑");
-                return;
-            }
-
-            this.preparingGroundArrivalPending = false;
-            this.levelSyncAttempts = 0;
-            this.Transition(
-                AutomationState.WaitingForLevelSync,
-                $"开启 FATE 后已地面导航回到中心（距中心 {distance:0.0}），开始等级同步");
-            return;
+            this.preparingGroundArrivalPending = false; this.levelSyncAttempts = 0;
+            this.Transition(AutomationState.WaitingForLevelSync, "已完成开启后的地面返回，开始等级同步"); return;
         }
-
-        this.Transition(AutomationState.DismountingForFate, $"已进入 FATE 范围并落地（距中心 {distance:0.0}）");
+        this.Transition(AutomationState.DismountingForFate, "FN 已确认到达并下坐骑，继续 FATE 业务核验");
     }
+
     private LandingStatus BeginStableLanding(DateTime now, string reason)
     {
         Vector3? previousDestination = this.travelSession.Landing.Destination;
         LandingStatus result = this.travelSession.Landing.Update(now, this.objectTable.LocalPlayer?.Position,
             new FlightState(this.mount.IsInFlight, this.mount.IsJumping, this.mount.IsMountTransition));
+        if (result == LandingStatus.Approaching) this.vnavmesh.Pump(this.mount.IsInFlight);
         this.statusReason = reason + "：" + (result switch
         {
             LandingStatus.WaitingForPath => "等待旧路径及算路停止",
@@ -3616,6 +3657,14 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         float distance = this.DistanceToPlayer(arrivalPosition);
         float horizontalDistance = this.HorizontalDistanceToPlayer(arrivalPosition);
         float arrivalBoundary = Math.Max(12f, fate.Radius) + 2f;
+        if (!preparing && !this.mount.IsInFlight
+            && this.fateLandingPlanner.Floor is { } plannedFloor
+            && (this.DistanceToPlayer(plannedFloor) > 4f
+                || distance > arrivalBoundary && !IsPlayerInFate(fate.FateId)))
+        {
+            this.HandleLandingFailure(fate, "实际落地位置偏离所选地面或目标 FATE 区域");
+            return;
+        }
         if (!preparing
             && !this.mount.IsInFlight
             && distance > arrivalBoundary
@@ -3680,6 +3729,16 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void HandleLandingFailure(FateSnapshot fate, string reason)
     {
+        if (this.fateLandingPlanner.Floor is not null)
+        {
+            this.StopNavigationOperation();
+            this.travelSession.Landing.Reset();
+            this.fateLandingPlanner.RejectDestination(DateTime.UtcNow);
+            this.Transition(AutomationState.NavigatingToFate,
+                $"{reason}；排除原落点并重新检查圈内候选", DiagnosticSeverity.Warning);
+            this.nextActionAt = DateTime.MinValue;
+            return;
+        }
         this.StopNavigationOperation();
         this.vnavmesh.Stop();
         this.travelSession.Landing.Reset();
@@ -3865,16 +3924,32 @@ public sealed unsafe partial class FateAutomationController : IDisposable
                 LandingTimeout = LandingTimeout,
                 NoFlyLandingPoint = zone?.LandingPoint,
                 LandingApproach = purpose == NavigationPurpose.LandingRecovery,
+                StopOnStall = purpose == NavigationPurpose.TravelToFate && this.fateLandingPlanner.Floor is not null,
                 AllowFlightRecovery = purpose is not NavigationPurpose.ReturnToFate and not NavigationPurpose.PreSyncPosition
                     && (purpose != NavigationPurpose.GemstoneVendor
-                        || !this.exchangeGroundApproach && this.mount.IsReadyForNavigation && this.ExchangeCanFly()),
+                        || this.mount.IsReadyForNavigation && this.ExchangeCanFly()),
             });
         this.travelSessionActive = true;
         this.nextTravelSnapshotAt = DateTime.MinValue;
     }
 
+    private void LogJourneySnapshot(DateTime now, TravelObservation observation, TravelJourneyUpdate update)
+    {
+        if (now < this.nextTravelSnapshotAt) return;
+        this.nextTravelSnapshotAt = now.AddSeconds(1);
+        this.AddDiagnostic(DiagnosticSeverity.Debug,
+            $"[JOURNEY_SNAPSHOT] businessState={this.state}; journeyState={update.State}; movement={update.Movement}; "
+            + $"position={observation.Position}; insideNoFly={observation.InsideNoFly}; canFly={observation.CanFly}; "
+            + $"mountedReady={observation.MountedReady}; inFlight={observation.Flight.InFlight}; "
+            + $"jumping={observation.Flight.Jumping}; moveActive={this.vnavmesh.IsMoveActive}; "
+            + $"exitWaypointPending={this.fateJourney.IntermediateWaypointPending}; reason={update.Reason}");
+    }
+
     private void EndTravelSession()
     {
+        if (this.fateJourneyActive && this.fateJourney.IntermediateWaypointReached)
+            this.fateFlightWaypointPassed = true;
+        if (this.fateJourneyActive) { this.fateJourney.Cancel(); this.fateJourneyActive = false; }
         if (this.travelSessionActive)
             this.travelSession.Cancel();
         this.travelSessionActive = false;
@@ -3912,6 +3987,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             zone is not null,
             flight,
             zone?.LandingPoint));
+        if (update.Outcome is NavigationTravelOutcome.Progress or NavigationTravelOutcome.Retrying) this.vnavmesh.Pump(true);
 
         if (now >= this.nextTravelSnapshotAt)
         {
@@ -6661,6 +6737,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void BeginCombatCleanup(CleanupContinuation continuation, string reason)
     {
+        this.autoRepair.Cancel();
         this.cleanupContinuation = continuation;
         this.cleanupDiagnosticAt = DateTime.MinValue;
         this.travelObservationDelayPending = false;
@@ -7119,7 +7196,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
     private void FinalizePendingFateResult()
     {
         this.exchangeSettlementUntil = DateTime.UtcNow.AddSeconds(3);
-        if (this.configuration.GemstoneExchange.Enabled
+        if (this.AutomaticExchangeEnabled
             && this.TryGetGemstones(out uint settlementBalance, out uint settlementCap))
         {
             this.AddDiagnostic(
@@ -7229,7 +7306,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
             && this.GetCurrentPresetStopConditions().Any(stop => stop.Kind == StopConditionKind.NoFates)
             && this.clientState.TerritoryType == this.GetCurrentPlan().TerritoryId
             && this.activeFateId is null && this.pendingFateResult is null
-            && this.mapReentryTerritory is null && !this.condition[ConditionFlag.InCombat]
+            && this.mapReentryTerritory is null && !this.condition[ConditionFlag.InCombat] && !this.autoRepair.IsActive
             && this.state is AutomationState.ScanningFates or AutomationState.CheckingCompanions;
         this.noFateStopTimer.Observe(now, this.presetIndex, this.clientState.TerritoryType,
             GetPublicInstanceId(), waitingOnMap, this.fates.Snapshot.Count != 0);
@@ -7790,6 +7867,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void ResetCurrentActivity(bool preserveMapReentry = false)
     {
+        this.fateLandingPlanner.Reset();
         this.preSyncPosition = null;
         this.preSyncDiagnosticAt = DateTime.MinValue;
         this.landingRecoveryAttempts = 0;
@@ -7865,6 +7943,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         this.dutyResetPhase = AggroDutyResetPhase.None;
         this.ResetManualDutyRoundTripState();
         this.ResetNavigationProgress();
+        this.fateFlightWaypointPassed = false;
         this.combatMovement.ResetTargetSelection();
         this.preparingGroundArrivalPending = false;
         this.navigationOnlyRequested = false;
@@ -7881,6 +7960,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void ResetNavigationProgress()
     {
+        this.fateLandingPlanner.CancelQuery(retry: true);
         this.EndTravelSession();
     }
 
@@ -7931,6 +8011,7 @@ public sealed unsafe partial class FateAutomationController : IDisposable
 
     private void CancelOwnedActions()
     {
+        this.autoRepair.Cancel();
         this.SuspendExchangeActions();
         this.companionChocoboActionPending = false;
         this.StopNavigationOperation();
@@ -8041,6 +8122,8 @@ public sealed unsafe partial class FateAutomationController : IDisposable
         bool logTransition = true)
     {
         bool changed = this.state != next;
+        if (changed && this.state == AutomationState.CheckingCompanions)
+            this.autoRepair.Cancel();
         if (changed && next == AutomationState.WaitingForLevelSync)
         {
             this.preSyncPosition = null;

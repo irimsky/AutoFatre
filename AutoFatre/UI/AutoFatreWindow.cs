@@ -1432,6 +1432,9 @@ public sealed partial class AutoFatreWindow : Window, IDisposable
             case AutoFatreSettingsPage.Companion:
                 this.DrawCompanionSettings();
                 break;
+            case AutoFatreSettingsPage.AutoRepair:
+                this.DrawAutoRepairSettings();
+                break;
             case AutoFatreSettingsPage.Movement:
                 this.DrawMovementSettings();
                 this.DrawNavigationRecoverySettings();

@@ -30,6 +30,7 @@ public sealed unsafe partial class FateAutomationController
         var player = this.objectTable.LocalPlayer;
         var fate = this.ResolveActiveFate();
         bool legitimateWait = player is null || this.IsBetweenAreas() || now < this.territoryStableAfter
+            || this.autoRepair.IsActive
             || this.state is AutomationState.WaitingForLogin or AutomationState.WaitingForTerritory
                 or AutomationState.ScanningFates or AutomationState.DeadWaitingForRaise or AutomationState.DeadReturning
                 or AutomationState.ResettingAggroViaDuty

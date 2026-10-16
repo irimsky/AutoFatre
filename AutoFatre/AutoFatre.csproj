@@ -3,7 +3,7 @@
     <AssemblyName>AutoFatre</AssemblyName>
     <RootNamespace>AutoFatre</RootNamespace>
     <AutoFatreUsesDalamud>true</AutoFatreUsesDalamud>
-    <Version>0.3.3.0</Version>
+    <Version>0.3.4.0</Version>
     <TargetFramework>net10.0-windows</TargetFramework>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <PlatformTarget>x64</PlatformTarget>
@@ -30,4 +30,8 @@
     <Error Condition="!Exists('FieldNavigation/NavigationSession.cs')"
            Text="FieldNavigation submodule is missing. Run git submodule update --init --recursive (for the local sibling repository, add -c protocol.file.allow=always)." />
   </Target>
+  <PropertyGroup>
+    <FieldNavigationSourcePath>$(MSBuildProjectDirectory)/FieldNavigation</FieldNavigationSourcePath>
+  </PropertyGroup>
+  <Import Project="FieldNavigation/FieldNavigation.targets" />
 </Project>

@@ -35,7 +35,8 @@ public sealed unsafe partial class FateAutomationController
     {
         if (!this.framework.IsInFrameworkUpdateThread || this.disposed || this.framework.IsFrameworkUnloading
             || territory == 0 || item == 0 || target <= 0 || this.IsRunning
-            || this.state != AutomationState.Stopped || this.temporaryTargetActive || this.itemFarmMaps is not null)
+            || this.state != AutomationState.Stopped || this.temporaryTargetActive || this.itemFarmMaps is not null
+            || this.exchangeRequested || this.IsExchanging)
             return "";
         var itemRow = this.dataManager.GetExcelSheet<Lumina.Excel.Sheets.Item>().GetRowOrDefault(item);
         var territoryRow = this.dataManager.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>().GetRowOrDefault(territory);
@@ -49,11 +50,16 @@ public sealed unsafe partial class FateAutomationController
             Name = $"{territoryRow.Value.PlaceName.Value.Name} · {itemRow.Value.Name}", TerritoryId = territory,
             StopConditions = [new StopCondition { Kind = StopConditionKind.ItemCount, ItemId = item, ItemCount = target }]
         } };
-        try { this.StartCore(); }
+        try
+        {
+            this.StartCore();
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"IPC 物品目标启动：自动兑换={enableExchange}（仅使用 IPC 参数）");
+        }
         catch (Exception ex)
         {
+            this.Stop($"临时物品目标启动失败：{ex.Message}");
             this.itemFarmResult = "Failed";
-            this.statusReason = $"临时物品目标启动失败：{ex.Message}";
             // Return the reserved token even on failure so the caller can retry owned cleanup.
         }
         return this.itemFarmToken;
@@ -71,7 +77,7 @@ public sealed unsafe partial class FateAutomationController
     {
         if (!this.framework.IsInFrameworkUpdateThread || this.disposed || this.framework.IsFrameworkUnloading
             || fateId == 0 || requiredCount <= 0 || this.IsRunning || this.state != AutomationState.Stopped
-            || this.temporaryTargetActive || this.itemFarmMaps is not null
+            || this.temporaryTargetActive || this.itemFarmMaps is not null || this.exchangeRequested || this.IsExchanging
             || !this.staticFateTerritoryCatalog.TryGet(fateId, out FateTerritoryEntry? entry) || entry is null)
             return "";
         this.itemFarmToken = Guid.NewGuid().ToString("N");
@@ -85,11 +91,16 @@ public sealed unsafe partial class FateAutomationController
             StopConditions = [new StopCondition { Kind = StopConditionKind.TargetFate,
                 TargetFateId = fateId, FateCount = requiredCount }]
         } };
-        try { this.StartCore(); }
+        try
+        {
+            this.StartCore();
+            this.AddDiagnostic(DiagnosticSeverity.Information,
+                $"IPC FATE 目标启动：自动兑换={enableExchange}（仅使用 IPC 参数）");
+        }
         catch (Exception ex)
         {
+            this.Stop($"临时 FATE 目标启动失败：{ex.Message}");
             this.itemFarmResult = "Failed";
-            this.statusReason = $"临时 FATE 目标启动失败：{ex.Message}";
         }
         return this.itemFarmToken;
     }

@@ -61,7 +61,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
             aetheryteList,
             this.staticFateCatalog,
             this.staticFateTerritoryCatalog);
-        var vnavmesh = new VnavmeshIpc(pluginInterface);
+        var vnavmesh = new VnavmeshIpc(pluginInterface, () => objectTable.LocalPlayer?.Position);
         var lifestream = new LifestreamIpc(pluginInterface);
         var fateRepository = new FateRepository(fateTable, clientState);
         var aetheryteTravelPlanner = new AetheryteTravelPlanner(dataManager, aetheryteList);
