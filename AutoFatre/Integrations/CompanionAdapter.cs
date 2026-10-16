@@ -27,14 +27,16 @@ public sealed unsafe class CompanionAdapter(
     /// <summary>Raw result returned by AgentInventoryContext.UseItem for the last attempt.</summary>
     public long? LastUseItemResult { get; private set; }
 
-    public bool HasChocobo => buddyList.CompanionBuddy is not null;
+    // Riding/flying can hide the companion actor without dismissing its active timer.
+    public bool HasChocobo => this.ChocoboTimeLeft > 0f || buddyList.CompanionBuddy is not null;
 
     public float ChocoboTimeLeft
     {
         get
         {
             UIState* ui = UIState.Instance();
-            return ui is null ? 0f : Math.Max(0f, ui->Buddy.CompanionInfo.TimeLeft);
+            float remaining = ui is null ? 0f : ui->Buddy.CompanionInfo.TimeLeft;
+            return float.IsFinite(remaining) ? Math.Max(0f, remaining) : 0f;
         }
     }
 

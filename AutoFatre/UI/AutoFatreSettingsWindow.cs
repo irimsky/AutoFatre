@@ -12,6 +12,7 @@ public enum AutoFatreSettingsPage
 {
     Interface,
     Companion,
+    AutoRepair,
     Movement,
     Combat,
     PriorityTargets,
@@ -101,6 +102,7 @@ public sealed class AutoFatreSettingsWindow : Window, IDisposable
     {
         AutoFatreSettingsPage.Interface => "界面",
         AutoFatreSettingsPage.Companion => "伙伴",
+        AutoFatreSettingsPage.AutoRepair => "自动修理",
         AutoFatreSettingsPage.Movement => "移动与导航",
         AutoFatreSettingsPage.Combat => "战斗",
         AutoFatreSettingsPage.PriorityTargets => "迷失目标",

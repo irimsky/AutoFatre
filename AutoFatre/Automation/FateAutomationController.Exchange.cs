@@ -30,15 +30,11 @@ public sealed unsafe partial class FateAutomationController
     private DateTime exchangeUnavailableSince;
     private DateTime exchangeNavigationLogAt;
     private DateTime exchangeTravelStartedAt;
-    private DateTime exchangeMountRetryAt;
     private ExchangePhase exchangeNavigationResumePhase;
     private bool exchangeTeleportOwned;
     private bool exchangeInstanceOwned;
     private uint exchangeHopTerritory;
     private DateTime exchangeTeleportStartedAt;
-    private int exchangeMountAttempts;
-    private bool exchangeGroundApproach;
-    private LandingSession? exchangeLandingSession;
     private bool exchangeInteractionIssued;
     private int exchangeInteractionAttempts;
     private int exchangeBatch;
@@ -57,6 +53,10 @@ public sealed unsafe partial class FateAutomationController
     public bool IsExchanging => this.exchangePlan is not null;
     public bool ExchangePending => this.exchangeRequested;
     public string ExchangeStatus => this.exchangeStatus;
+    // Temporary requests own their permission; the saved checkbox is only for normal runs.
+    private bool AutomaticExchangeEnabled => this.itemFarmMaps is not null || this.temporaryTargetActive
+        ? this.allowExchangeForExternalFarm
+        : this.configuration.GemstoneExchange.Enabled;
     public ItemUseStatus GetExchangeItemUseStatus(GemstoneProduct product) => ItemUnlockStatusReader.Read(product,
         this.clientState.IsLoggedIn && this.playerState.IsLoaded && !this.IsBetweenAreas());
 
@@ -74,7 +74,7 @@ public sealed unsafe partial class FateAutomationController
     private bool IsAutomaticExchangeDue()
     {
         GemstoneExchangeSettings settings = this.configuration.GemstoneExchange;
-        if (!settings.Enabled || !this.TryGetGemstones(out uint balance, out uint cap))
+        if (!this.AutomaticExchangeEnabled || !this.TryGetGemstones(out uint balance, out uint cap))
             return false;
 
         return balance >= Math.Min((uint)settings.Threshold, cap) && !this.IsExchangeContextUnchanged(settings, balance);
@@ -97,7 +97,7 @@ public sealed unsafe partial class FateAutomationController
     {
         var context = new System.Text.StringBuilder();
         context.Append(this.playerState.ContentId).Append('|').Append(balance).Append('|')
-            .Append(settings.Enabled).Append('|').Append(settings.Threshold).Append('|').Append(settings.Reserve);
+            .Append(this.AutomaticExchangeEnabled).Append('|').Append(settings.Threshold).Append('|').Append(settings.Reserve);
         foreach (var rule in settings.Rules)
         {
             var product = this.exchangeCatalog.Find(rule);
@@ -118,7 +118,7 @@ public sealed unsafe partial class FateAutomationController
         if (this.IsExchanging) return;
         if (this.condition[ConditionFlag.BoundByDuty] || this.condition[ConditionFlag.BoundByDuty56]
             || this.condition[ConditionFlag.BoundByDuty95]) { this.exchangeStatus = "副本内不能兑换双色宝石"; return; }
-        if ((this.itemFarmMaps is not null || this.temporaryTargetActive) && !this.allowExchangeForExternalFarm
+        if ((this.itemFarmMaps is not null || this.temporaryTargetActive) && !this.AutomaticExchangeEnabled
             || this.navigationOnlyRequested || this.manualDutyRoundTrip)
         { this.exchangeStatus = "临时任务或仅导航期间不能兑换"; return; }
         if (this.state is AutomationState.Paused or AutomationState.Faulted)
@@ -139,12 +139,17 @@ public sealed unsafe partial class FateAutomationController
 
     private bool TryBeginExchange(DateTime now, bool manual = false)
     {
+        // A disabled external task must not enter exchange gates, wait on a threshold,
+        // or emit warnings just because the player's balance is high.
+        if (!this.AutomaticExchangeEnabled
+            && (!this.exchangeRequested || this.itemFarmMaps is not null || this.temporaryTargetActive))
+            return false;
+
         var settings = this.configuration.GemstoneExchange;
         bool hasGemstones = this.TryGetGemstones(out uint balance, out uint cap);
         bool due = hasGemstones && balance >= Math.Min((uint)settings.Threshold, cap);
         string? gate = null;
         if (this.IsExchanging) gate = "已经在兑换流程中";
-        else if ((this.itemFarmMaps is not null || this.temporaryTargetActive) && !this.allowExchangeForExternalFarm) gate = "当前是临时任务且 IPC 未授权兑换";
         else if (this.navigationOnlyRequested) gate = "当前是仅导航模式";
         else if (this.manualDutyRoundTrip) gate = "当前正在执行副本进退";
         else if (this.activeFateId is not null) gate = $"当前 FATE 尚未清理（FATE={this.activeFateId.Value}）";
@@ -158,7 +163,6 @@ public sealed unsafe partial class FateAutomationController
         else if (this.condition[ConditionFlag.Casting] || this.condition[ConditionFlag.Casting87]) gate = "当前正在施法";
         else if (now < this.exchangeSettlementUntil) gate = $"等待 FATE 奖励结算（还需 {(this.exchangeSettlementUntil - now).TotalSeconds:0.0}s）";
         else if (this.lifestream.IsBusy) gate = "Lifestream 正忙";
-        else if (!this.exchangeRequested && !(settings.Enabled || this.allowExchangeForExternalFarm)) gate = "自动兑换未启用，且 IPC 未授权兑换";
         else if (!this.exchangeRequested && !hasGemstones) gate = "无法读取双色宝石数量";
         else if (!this.exchangeRequested && !due) gate = hasGemstones
             ? $"未达到门槛（余额={balance}，门槛={Math.Min((uint)settings.Threshold, cap)}，上限={cap}）"
@@ -218,7 +222,7 @@ public sealed unsafe partial class FateAutomationController
         this.exchangeGateLogMessage = reason;
         this.AddDiagnostic(important ? DiagnosticSeverity.Warning : DiagnosticSeverity.Debug,
             $"自动兑换入口未启动：{reason}；Enabled={this.configuration.GemstoneExchange.Enabled}，" +
-            $"IPC授权={this.allowExchangeForExternalFarm}，Requested={this.exchangeRequested}，" +
+            $"IPC授权={this.allowExchangeForExternalFarm}，本次启用={this.AutomaticExchangeEnabled}，Requested={this.exchangeRequested}，" +
             $"State={this.state}，余额读取={(this.TryGetGemstones(out uint balance, out uint cap) ? $"{balance}/{cap}" : "失败")}，" +
             $"阈值={this.configuration.GemstoneExchange.Threshold}");
     }
@@ -337,9 +341,6 @@ public sealed unsafe partial class FateAutomationController
             this.exchangeVendor = vendor;
             this.exchangeInteractionIssued = false;
             this.exchangeInteractionAttempts = 0;
-            this.exchangeMountAttempts = 0;
-            this.exchangeMountRetryAt = DateTime.MinValue;
-            this.exchangeGroundApproach = false;
             this.exchangeTravelStartedAt = now;
             this.SetExchangePhase(reuse ? ExchangePhase.Buy : ExchangePhase.Travel, now);
             this.exchangeStatus = reuse ? $"继续在当前商店兑换 {product.Name}"
@@ -502,98 +503,51 @@ public sealed unsafe partial class FateAutomationController
 
     private void MountForExchangeVendor(DateTime now)
     {
-        if (!this.TryGetExchangeDestination(out _, out _, out bool arrived)) return;
-        if (arrived) { this.BeginExchangeDismount(now); return; }
-        if (this.mount.IsMountTransition || this.mount.IsJumping)
-        { this.exchangeStatus = "等待坐骑切换或跳跃结束"; return; }
-        var territory = this.dataManager.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>()
-            .GetRowOrDefault(this.clientState.TerritoryType);
-        if (territory is null) { this.FailExchange("无法读取商人地图的坐骑许可"); return; }
-        if (!this.ExchangeCanFly() || this.GetCurrentNoFlyZone() is not null)
-            this.exchangeGroundApproach = true;
-        if (this.mount.IsReadyForNavigation || this.mount.IsInFlight)
-        { this.SetExchangePhase(ExchangePhase.Navigate, now); return; }
-        if (now < this.exchangeMountRetryAt || now < this.mount.NextMountRequestAt)
-        { this.exchangeStatus = "等待上坐骑结果"; return; }
-        if (!territory.Value.Mount || this.exchangeMountAttempts >= 3)
-        {
-            this.exchangeGroundApproach = true;
-            this.AddDiagnostic(DiagnosticSeverity.Information,
-                $"自动兑换：改用地面导航；地图允许坐骑={territory.Value.Mount}，上坐骑尝试={this.exchangeMountAttempts}");
-            this.SetExchangePhase(ExchangePhase.Navigate, now);
-            return;
-        }
-        if (!this.mount.CanAttemptMount)
-        { this.exchangeStatus = $"等待坐骑操作可用：{this.mount.MountBlockReason}"; return; }
-        // Questionable waits five seconds for the mounted state before retrying a request.
-        this.ClearTarget();
-        bool sent = this.mount.TryMount();
-        this.exchangeMountAttempts++;
-        this.exchangeMountRetryAt = now.AddSeconds(5);
-        this.exchangeStatus = sent ? "已请求坐骑，等待上坐骑完成" : "坐骑请求未接受，等待后重试";
-        this.AddDiagnostic(DiagnosticSeverity.Information,
-            $"自动兑换：请求坐骑，结果={sent}，尝试={this.exchangeMountAttempts}/3，允许飞行={this.ExchangeCanFly()}");
+        if (!this.TryGetExchangeDestination(out _, out _, out _)) return;
+        this.SetExchangePhase(ExchangePhase.Navigate, now);
     }
 
     private void NavigateToExchangeVendor(DateTime now)
     {
-        if (!this.TryGetExchangeDestination(out _, out Vector3 destination, out bool arrived)) return;
-        if (arrived) { this.BeginExchangeDismount(now); return; }
+        if (!this.TryGetExchangeDestination(out var npc, out Vector3 destination, out _)) return;
         if (!this.exchangeNavigationStatus.TryRead(out bool ready, out _))
-        { this.FailExchange("vnavmesh 导航 IPC 未注册或调用失败，请确认插件已加载"); return; }
+        { this.FailExchange("vnavmesh 导航接口不可用"); return; }
         if (!ready)
         {
-            this.StopNavigationOperation();
-            this.exchangeNavigationResumePhase = ExchangePhase.Navigate;
-            this.SetExchangePhase(ExchangePhase.WaitNavigation, now);
-            return;
+            this.StopNavigationOperation(); this.exchangeNavigationResumePhase = ExchangePhase.Navigate;
+            this.SetExchangePhase(ExchangePhase.WaitNavigation, now); return;
         }
-        if (this.mount.IsMountTransition || this.mount.IsJumping && !this.travelSessionActive) return;
-        if (!this.mount.IsMounted && !this.mount.IsInFlight)
-            this.exchangeGroundApproach = true;
-        var player = this.objectTable.LocalPlayer!;
-        bool forceLanding = this.mount.IsInFlight && Vector3.Distance(player.Position, destination) <= 20f;
-        if (forceLanding)
-            this.exchangeGroundApproach = true;
-        this.StartTravelSession(now, NavigationPurpose.GemstoneVendor, destination,
-            fly: !this.exchangeGroundApproach && this.ExchangeCanFly(),
-            GroundDestinationKind.Raw, horizontalProgress: false, "自动兑换商人");
-        var update = this.TickTravelSession(now, destination, () => arrived && !this.mount.IsInFlight);
-        if (update.Outcome == NavigationTravelOutcome.Failed || update.RequestResult == NavigationRequestResult.Rejected)
-            this.FailExchange($"前往兑换商人失败：{update.Reason}");
-        else this.exchangeStatus = $"前往 {this.exchangeVendor!.Name}，距离 {Vector3.Distance(player.Position, destination):0.0} 码，"
-            + (this.mount.IsInFlight ? "飞行中" : this.mount.IsMounted ? "坐骑中" : "步行");
-    }
-
-    private void BeginExchangeDismount(DateTime now)
-    {
-        this.StopNavigationOperation();
-        this.exchangeLandingSession ??= new LandingSession(this.vnavmesh, this.landing);
-        this.exchangeLandingSession.BeginVerticalDescent();
-        this.SetExchangePhase(ExchangePhase.Dismount, now);
-    }
-
-    private void DismountAtExchangeVendor(DateTime now)
-    {
-        if (!this.TryGetExchangeDestination(out var npc, out _, out bool arrived)) return;
-        if (!arrived)
+        var observation = this.ObserveFateTravel(now, destination) with { CanFly = this.ExchangeCanFly() };
+        if (!this.fateJourneyActive)
         {
-            this.exchangeLandingSession?.Reset();
-            this.SetExchangePhase(ExchangePhase.Navigate, now);
-            return;
+            var territory = this.dataManager.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>().GetRowOrDefault(this.clientState.TerritoryType);
+            this.EndTravelSession();
+            this.fateJourney.Start(new()
+            {
+                Destination = destination, FindApproachPoint = true,
+                IntermediateWaypoint = observation.CanFly && territory is { Mount: true }
+                    ? this.noFlyZones.FindFlightExitWaypoint(this.clientState.TerritoryType, observation.Position, destination) : null,
+                IntermediateWaypointIsMapCoordinate = true,
+                Movement = new() { Preferred = territory is { Mount: true } ? TravelMovementMode.Automatic : TravelMovementMode.Foot },
+                Arrival = new() { Radius = 3.5f, HeightTolerance = 2 }, LandingRadius = 20,
+                MaximumMountRequests = 3, OperationTimeout = TimeSpan.FromMinutes(3),
+            }, observation);
+            this.fateJourneyActive = true;
         }
-        if (now - this.exchangePhaseStartedAt > TimeSpan.FromSeconds(12))
-        { this.FailExchange("商人附近落地或下坐骑超过 12 秒"); return; }
-        this.exchangeStatus = "已接近商人，等待落地稳定并下坐骑";
-        if (this.exchangeLandingSession!.Update(now, this.objectTable.LocalPlayer!.Position,
-                new FlightState(this.mount.IsInFlight, this.mount.IsJumping, this.mount.IsMountTransition)) != LandingStatus.Landed)
-            return;
-        if (!this.mount.IsDismounted) { this.mount.TryDismount(); return; }
-        this.exchangeLandingSession.Reset();
+        var update = this.fateJourney.Tick(observation);
+        this.LogJourneySnapshot(now, observation, update);
+        this.exchangeStatus = update.Reason;
+        if (update.Outcome == NavigationTravelOutcome.Failed) { this.FailExchange($"前往兑换商人失败：{update.Reason}"); return; }
+        if (update.Outcome != NavigationTravelOutcome.Arrived) return;
+        this.EndTravelSession();
+        if (npc is null) { this.FailExchange("已到达商人数据位置，但实际商人尚不可交互"); return; }
         this.targetManager.Target = npc;
-        this.exchangeShop.Begin(this.exchangeVendor!.NpcId, npc!.GameObjectId);
+        this.exchangeShop.Begin(this.exchangeVendor!.NpcId, npc.GameObjectId);
         this.SetExchangePhase(ExchangePhase.Open, now);
     }
+
+    private void BeginExchangeDismount(DateTime now) => this.SetExchangePhase(ExchangePhase.Navigate, now);
+    private void DismountAtExchangeVendor(DateTime now) => this.NavigateToExchangeVendor(now);
 
     private void OpenExchangeShop(DateTime now)
     {
@@ -728,7 +682,7 @@ public sealed unsafe partial class FateAutomationController
 
     private void SuspendExchangeActions()
     {
-        this.exchangeLandingSession?.Reset();
+        if (this.fateJourneyActive) this.EndTravelSession();
         if (this.IsExchanging) this.textAdvance.Disable();
         if (this.exchangeTeleportOwned || this.exchangeInstanceOwned) this.lifestream.Abort();
         this.exchangeTeleportOwned = false;
@@ -746,7 +700,6 @@ public sealed unsafe partial class FateAutomationController
         this.exchangeVendor = null;
         this.exchangeNavigationLogAt = DateTime.MinValue;
         this.exchangeTravelStartedAt = DateTime.MinValue;
-        this.exchangeMountRetryAt = DateTime.MinValue;
     }
 
     private void CompleteExchange()
